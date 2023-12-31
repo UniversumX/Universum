@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class CNN1D(nn.Module):
     """
     Modified EEGFormer 1D CNN implementation using depth-wise convolution.
-    TODO this may need to be changed for the actual data
+    Includes a transformation to change the output dimension from 8 to 64.
     """
 
     def __init__(
@@ -15,10 +16,11 @@ class CNN1D(nn.Module):
         kernel_size: int,
         n_1d_cnn_layers: int,
         n_channels=8,
+        output_dimension=64  # New parameter for the output dimension after transformation
     ):
         super(CNN1D, self).__init__()
-        self.n_channels = n_channels  # Number of channels
-        self.sequence_length = sequence_length  # Number of sampled points
+        self.n_channels = n_channels
+        self.sequence_length = sequence_length
 
         # Ensure at least one layer
         assert n_1d_cnn_layers >= 1, "Number of 1D CNN layers must be at least 1"
@@ -32,10 +34,10 @@ class CNN1D(nn.Module):
             for _ in range(1, n_1d_cnn_layers)
         ])
 
+        # Transformation layer to change the output dimension
+        self.transform = nn.Linear(n_channels * convolution_dimension_length, output_dimension)
+
     def forward(self, x):
-        """
-        Expected input shape: (batch_size, n_channels, sequence_length)
-        """
         # Apply initial depth-wise convolution
         output = self.initial_conv(x)
 
@@ -43,12 +45,15 @@ class CNN1D(nn.Module):
         for conv in self.subsequent_convs:
             output = conv(output)
 
-        # Reshape the output to maintain the sequence length
-        batch_size, _, _ = x.shape
-        output = output.view(batch_size, self.n_channels, -1)
+        # Reshape the output for the transformation layer
+        # Flatten the convolutional output while keeping the batch dimension
+        batch_size, _, seq_len = output.shape
+        output = output.view(batch_size, -1, seq_len)  # New shape: (batch_size, n_channels * convolution_dimension_length, seq_len)
 
-        # Ensure output sequence length matches input sequence length
-        output = output[:, :, :self.sequence_length]
+        # Apply the transformation to each time step
+        output = output.permute(0, 2, 1)  # Change shape to (batch_size, seq_len, n_channels * convolution_dimension_length)
+        output = self.transform(output)  # Apply transformation to get (batch_size, seq_len, output_dimension)
+        output = output.permute(0, 2, 1)  # Revert shape to (batch_size, output_dimension, seq_len)
 
         return output
 
@@ -58,7 +63,11 @@ class CNN1D(nn.Module):
 # output = model(input_data)
 # print(output.shape)  # should be torch.Size([10, 8, 1000])
 
-
+"""
+Transformation Layer: The self.transform linear layer adjusts the output dimension from (n_channels * convolution_dimension_length) to the desired output_dimension (64 in this case).
+Reshaping: Before applying the transformation, the output is reshaped and permuted to ensure that the transformation is applied correctly across the entire sequence length.
+Output Dimension: The output of the CNN1D will now be in the shape (batch_size, output_dimension, seq_len), where output_dimension is 64 as required by your transformer model.
+"""
 
 
 # TODO make sure this can generalize

@@ -63,6 +63,7 @@ for epoch in range(num_epochs):
     for eeg_data, accel_data in train_loader:
         # Forward pass
         outputs = model(eeg_data)
+        accel_data = accel_data.permute(2, 0, 1)  # Adjusting the target shape to match the output
         loss = criterion(outputs, accel_data)
 
         # Backward and optimize
