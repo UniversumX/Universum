@@ -141,6 +141,65 @@ class EEGformerEncoder(nn.Module):
         return x
 
 
+class EEGformerDecoderForRegression(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(EEGformerDecoderForRegression, self).__init__()
+        # Assuming input_dim is the output feature size from the encoder
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)  # output_dim should match the accelerometer data dimension
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)  # No activation, as this is a regression task
+        return x
+
+class EEGFormerForRegression(nn.Module):
+    def __init__(self, sequence_length, convolution_dimension_length, kernel_size, n_1d_cnn_layers, n_channels, input_dim, num_heads, ff_dim, num_layers, dropout, hidden_dim, output_dim):
+        super(EEGFormerForRegression, self).__init__()
+        self.cnn1d = CNN1D(sequence_length, convolution_dimension_length, kernel_size, n_1d_cnn_layers, n_channels)
+        self.encoder = EEGformerEncoder(input_dim, num_heads, ff_dim, num_layers, dropout)
+        self.decoder = EEGformerDecoderForRegression(input_dim, hidden_dim, output_dim)
+
+    def forward(self, x):
+        # Apply CNN1D for feature extraction
+        x = self.cnn1d(x)
+        # Reshape x to fit the encoder input if necessary
+        x = x.permute(2, 0, 1)  # Assuming we need to permute to (sequence_length, batch, features)
+        # Apply the encoder
+        x = self.encoder(x)
+        # Apply the decoder
+        x = self.decoder(x)
+        return x
+
+
+
+
+class EEG2AccelModel(nn.Module):
+    def __init__(self, num_channels, hidden_dim, output_dim):
+        super(EEG2AccelModel, self).__init__()
+        # CNN for EEG feature extraction
+        self.conv1 = nn.Conv1d(num_channels, 64, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv1d(64, 128, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.MaxPool1d(2)
+        self.flatten = nn.Flatten()
+
+        # LSTM for time series prediction
+        self.lstm = nn.LSTM(128, hidden_dim, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        # Apply CNN layers
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = self.flatten(x)
+
+        # Reshape for LSTM
+        x = x.view(x.size(0), -1, x.size(1))  # Reshape input for LSTM: (batch_size, seq_len, features)
+
+        # Apply LSTM layers
+        lstm_out, (hidden, _) = self.lstm(x)
+        x = self.fc(lstm_out[:, -1, :])  # Use the output of the last time step
+        return x
 
 class EEGModel(torch.nn.Module):
     def __init__(
@@ -150,6 +209,7 @@ class EEGModel(torch.nn.Module):
 
     def forward(self, x):
         pass
+
 
 
 """
