@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn 
-
+import matplotlib.pyplot as plt
 from model import EEGFormerForRegression
 from dataset import EEGAccelDataset
 from torch.utils.data import Dataset, DataLoader
@@ -63,7 +63,12 @@ for epoch in range(num_epochs):
     for eeg_data, accel_data in train_loader:
         # Forward pass
         outputs = model(eeg_data)
-        accel_data = accel_data.permute(2, 0, 1)  # Adjusting the target shape to match the output
+        # Inside training loop
+        print("Batch EEG data shape:", eeg_data.shape)
+        print("Batch Accel data shape before permute:", accel_data.shape)
+        #accel_data = accel_data.permute(2, 0, 1)  # Adjusting the target shape to match the output
+        print("Batch Accel data shape after permute:", accel_data.shape)
+        # accel_data = accel_data.permute(1, 2, 0)  # Adjusting to (batch_size, channels, sequence_length)
         loss = criterion(outputs, accel_data)
 
         # Backward and optimize
@@ -72,4 +77,41 @@ for epoch in range(num_epochs):
         optimizer.step()
 
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+
+    # Evaluate the model
+    model.eval()  # Set the model to evaluation mode
+
+    with torch.no_grad():  # Disable gradient calculation for inference
+        for eeg_data, actual_accel_data in train_loader:
+            # Forward pass to get predictions
+            predicted_accel_data = model(eeg_data).cpu()
+
+            # Selecting the first sample in the batch for visualization
+            predicted_sample = predicted_accel_data[0].numpy()  # Convert to NumPy array for plotting
+            actual_sample = actual_accel_data[0].numpy()
+
+            print("Actual Sample Shape:", actual_sample.shape)
+            print("Predicted Sample Shape:", predicted_sample.shape)
+
+            # Assuming the shape is (3, 1000)
+            time_points = range(predicted_sample.shape[1])  # time points
+
+            # Create a plot for each dimension of the accelerometer data
+            for i in range(3):
+                plt.figure(figsize=(10, 4))
+                plt.plot(time_points, actual_sample[i], label='Actual', marker='o', linewidth=1, alpha=0.7)
+                plt.plot(time_points, predicted_sample[i], label='Predicted', marker='x', linewidth=1, alpha=0.7)
+                plt.title(f'Accelerometer Data - Dimension {i+1}')
+                plt.xlabel('Time')
+                plt.ylabel('Acceleration')
+                plt.legend()
+                plt.show()
+
+
+            # Break after the first batch for demonstration
+            break
+
+
+
+
 
