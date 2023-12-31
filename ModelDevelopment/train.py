@@ -7,6 +7,18 @@ from torch.utils.data import Dataset, DataLoader
 
 def get_data_loader(edf_file_path, segment_length, batch_size, transform=None):
     dataset = EEGAccelDataset(edf_file_path, segment_length, transform=transform)
+
+    # Example of using the dataset with preprocessing
+    """ 
+    dataset = EEGAccelDataset(
+        edf_file_path='path_to_your_file.edf',
+        segment_length=1000,
+        low_freq=1.,
+        high_freq=50.,
+        apply_ica=True,
+        downsample_rate=128  # Assuming you want to downsample to 128 Hz
+    )
+    """
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     return loader
 
