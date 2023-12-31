@@ -156,10 +156,12 @@ class EEGformerDecoderForRegression(nn.Module):
         # Assuming input_dim is the output feature size from the encoder
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, output_dim)  # output_dim should match the accelerometer data dimension
+        # self.fc2 = nn.Linear(hidden_dim, 3 * 1000)  # Adjust for the desired output shape
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)  # No activation, as this is a regression task
+        x = x.view(-1, 3, 1000)  # Reshape to (B, 3, 1000)
         return x
 
 class EEGFormerForRegression(nn.Module):
