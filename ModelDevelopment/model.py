@@ -173,7 +173,7 @@ class EEGFormerForRegression(nn.Module):
 
 
 
-
+# alternative models, LSTM based, we should add GRU as well
 class EEG2AccelModel(nn.Module):
     def __init__(self, num_channels, hidden_dim, output_dim):
         super(EEG2AccelModel, self).__init__()
