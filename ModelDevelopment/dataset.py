@@ -1,15 +1,15 @@
 import torch
+from torch.utils.data import Dataset, DataLoader
+import mne
+import numpy as np
+import pyedflib
+
 
 # TODO: 
 class EEGDataset(torch.utils.data.Dataset):
     def __init__(self, data, labels):
         self.data = data
         self.labels = labels
-
-from torch.utils.data import Dataset, DataLoader
-import mne
-import numpy as np
-import torch
 
 class EEGAccelDataset(Dataset):
     def __init__(self, edf_file_path, segment_length, transform=None):
@@ -40,17 +40,13 @@ class EEGAccelDataset(Dataset):
         return torch.from_numpy(eeg_segment).float(), torch.from_numpy(accel_segment).float()
 
 
-import mne
-
 # Load the EDF file
 raw = mne.io.read_raw_edf("dummy_data/dummy_set.edf", preload=True)
 
 # Print information about the file
 # Plot the data
 raw.plot(duration=5, n_channels=11)
-print(raw.info)
-
-import pyedflib
+# print(raw.info)
 
 f = pyedflib.EdfReader("dummy_data/dummy_set.edf")
 n = f.signals_in_file
