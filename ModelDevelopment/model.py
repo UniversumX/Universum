@@ -16,7 +16,7 @@ class CNN1D(nn.Module):
         kernel_size: int,
         n_1d_cnn_layers: int,
         n_channels=8,
-        output_dimension=64  # New parameter for the output dimension after transformation
+        output_dimension=64,  # New parameter for the output dimension after transformation
     ):
         super(CNN1D, self).__init__()
         self.n_channels = n_channels
@@ -26,16 +26,32 @@ class CNN1D(nn.Module):
         assert n_1d_cnn_layers >= 1, "Number of 1D CNN layers must be at least 1"
 
         # Initial depth-wise convolution layer
-        self.initial_conv = nn.Conv1d(n_channels, n_channels * convolution_dimension_length, kernel_size=kernel_size, groups=n_channels, padding=(kernel_size - 1) // 2)
+        self.initial_conv = nn.Conv1d(
+            n_channels,
+            n_channels * convolution_dimension_length,
+            kernel_size=kernel_size,
+            groups=n_channels,
+            padding="valid",
+        )
 
         # Subsequent depth-wise convolution layers
-        self.subsequent_convs = nn.ModuleList([
-            nn.Conv1d(n_channels * convolution_dimension_length, n_channels * convolution_dimension_length, kernel_size=kernel_size, groups=n_channels, padding=(kernel_size - 1) // 2)
-            for _ in range(1, n_1d_cnn_layers)
-        ])
+        self.subsequent_convs = nn.ModuleList(
+            [
+                nn.Conv1d(
+                    n_channels * convolution_dimension_length,
+                    n_channels * convolution_dimension_length,
+                    kernel_size=kernel_size,
+                    groups=n_channels,
+                    padding="valid",
+                )
+                for _ in range(1, n_1d_cnn_layers)
+            ]
+        )
 
         # Transformation layer to change the output dimension
-        self.transform = nn.Linear(n_channels * convolution_dimension_length, output_dimension)
+        self.transform = nn.Linear(
+            n_channels * convolution_dimension_length, output_dimension
+        )
 
     def forward(self, x):
         # Apply initial depth-wise convolution
@@ -48,14 +64,23 @@ class CNN1D(nn.Module):
         # Reshape the output for the transformation layer
         # Flatten the convolutional output while keeping the batch dimension
         batch_size, _, seq_len = output.shape
-        output = output.view(batch_size, -1, seq_len)  # New shape: (batch_size, n_channels * convolution_dimension_length, seq_len)
+        output = output.view(
+            batch_size, -1, seq_len
+        )  # New shape: (batch_size, n_channels * convolution_dimension_length, seq_len)
 
         # Apply the transformation to each time step
-        output = output.permute(0, 2, 1)  # Change shape to (batch_size, seq_len, n_channels * convolution_dimension_length)
-        output = self.transform(output)  # Apply transformation to get (batch_size, seq_len, output_dimension)
-        output = output.permute(0, 2, 1)  # Revert shape to (batch_size, output_dimension, seq_len)
+        output = output.permute(
+            0, 2, 1
+        )  # Change shape to (batch_size, seq_len, n_channels * convolution_dimension_length)
+        output = self.transform(
+            output
+        )  # Apply transformation to get (batch_size, seq_len, output_dimension)
+        output = output.permute(
+            0, 2, 1
+        )  # Revert shape to (batch_size, output_dimension, seq_len)
 
         return output
+
 
 # Example usage
 # model = CNN1D(sequence_length=1000, convolution_dimension_length=64, kernel_size=3, n_1d_cnn_layers=3, n_channels=8)
@@ -76,9 +101,7 @@ class TransformerBlock(nn.Module):
         super(TransformerBlock, self).__init__()
         self.attention = nn.MultiheadAttention(input_dim, num_heads, dropout=dropout)
         self.feed_forward = nn.Sequential(
-            nn.Linear(input_dim, ff_dim),
-            nn.ReLU(),
-            nn.Linear(ff_dim, input_dim)
+            nn.Linear(input_dim, ff_dim), nn.ReLU(), nn.Linear(ff_dim, input_dim)
         )
         self.layer_norm1 = nn.LayerNorm(input_dim)
         self.layer_norm2 = nn.LayerNorm(input_dim)
@@ -96,11 +119,17 @@ class TransformerBlock(nn.Module):
         x = self.layer_norm2(x)
         return x
 
+
 # TODO implement
 class TemporalTransformer(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=0.1):
         super(TemporalTransformer, self).__init__()
-        self.layers = nn.ModuleList([TransformerBlock(input_dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
+        self.layers = nn.ModuleList(
+            [
+                TransformerBlock(input_dim, num_heads, ff_dim, dropout)
+                for _ in range(num_layers)
+            ]
+        )
 
     def forward(self, x):
         for layer in self.layers:
@@ -112,7 +141,12 @@ class TemporalTransformer(nn.Module):
 class SynchronousTransformer(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=0.1):
         super(SynchronousTransformer, self).__init__()
-        self.layers = nn.ModuleList([TransformerBlock(input_dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
+        self.layers = nn.ModuleList(
+            [
+                TransformerBlock(input_dim, num_heads, ff_dim, dropout)
+                for _ in range(num_layers)
+            ]
+        )
 
     def forward(self, x):
         # x should be organized to emphasize synchronous aspects
@@ -121,11 +155,15 @@ class SynchronousTransformer(nn.Module):
         return x
 
 
-
 class RegionalTransformer(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=0.1):
         super(RegionalTransformer, self).__init__()
-        self.layers = nn.ModuleList([TransformerBlock(input_dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
+        self.layers = nn.ModuleList(
+            [
+                TransformerBlock(input_dim, num_heads, ff_dim, dropout)
+                for _ in range(num_layers)
+            ]
+        )
 
     def forward(self, x):
         # x should be organized to emphasize regional aspects
@@ -134,14 +172,18 @@ class RegionalTransformer(nn.Module):
         return x
 
 
-
-
 class EEGformerEncoder(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=0.1):
         super(EEGformerEncoder, self).__init__()
-        self.temporal_transformer = TemporalTransformer(input_dim, num_heads, ff_dim, num_layers, dropout)
-        self.synchronous_transformer = SynchronousTransformer(input_dim, num_heads, ff_dim, num_layers, dropout)
-        self.regional_transformer = RegionalTransformer(input_dim, num_heads, ff_dim, num_layers, dropout)
+        self.temporal_transformer = TemporalTransformer(
+            input_dim, num_heads, ff_dim, num_layers, dropout
+        )
+        self.synchronous_transformer = SynchronousTransformer(
+            input_dim, num_heads, ff_dim, num_layers, dropout
+        )
+        self.regional_transformer = RegionalTransformer(
+            input_dim, num_heads, ff_dim, num_layers, dropout
+        )
 
     def forward(self, x):
         x = self.temporal_transformer(x)
@@ -155,7 +197,9 @@ class EEGformerDecoderForRegression(nn.Module):
         super(EEGformerDecoderForRegression, self).__init__()
         # Assuming input_dim is the output feature size from the encoder
         self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)  # output_dim should match the accelerometer data dimension
+        self.fc2 = nn.Linear(
+            hidden_dim, output_dim
+        )  # output_dim should match the accelerometer data dimension
         # self.fc2 = nn.Linear(hidden_dim, 3 * 1000)  # Adjust for the desired output shape
 
     def forward(self, x):
@@ -164,24 +208,48 @@ class EEGformerDecoderForRegression(nn.Module):
         x = x.view(-1, 3, 1000)  # Reshape to (B, 3, 1000)
         return x
 
+
 class EEGFormerForRegression(nn.Module):
-    def __init__(self, sequence_length, convolution_dimension_length, kernel_size, n_1d_cnn_layers, n_channels, input_dim, num_heads, ff_dim, num_layers, dropout, hidden_dim, output_dim):
+    def __init__(
+        self,
+        sequence_length,
+        convolution_dimension_length,
+        kernel_size,
+        n_1d_cnn_layers,
+        n_channels,
+        input_dim,
+        num_heads,
+        ff_dim,
+        num_layers,
+        dropout,
+        hidden_dim,
+        output_dim,
+    ):
         super(EEGFormerForRegression, self).__init__()
-        self.cnn1d = CNN1D(sequence_length, convolution_dimension_length, kernel_size, n_1d_cnn_layers, n_channels)
-        self.encoder = EEGformerEncoder(input_dim, num_heads, ff_dim, num_layers, dropout)
+        self.cnn1d = CNN1D(
+            sequence_length,
+            convolution_dimension_length,
+            kernel_size,
+            n_1d_cnn_layers,
+            n_channels,
+        )
+        self.encoder = EEGformerEncoder(
+            input_dim, num_heads, ff_dim, num_layers, dropout
+        )
         self.decoder = EEGformerDecoderForRegression(input_dim, hidden_dim, output_dim)
 
     def forward(self, x):
         # Apply CNN1D for feature extraction
         x = self.cnn1d(x)
         # Reshape x to fit the encoder input if necessary
-        x = x.permute(2, 0, 1)  # Assuming we need to permute to (sequence_length, batch, features)
+        x = x.permute(
+            2, 0, 1
+        )  # Assuming we need to permute to (sequence_length, batch, features)
         # Apply the encoder
         x = self.encoder(x)
         # Apply the decoder
         x = self.decoder(x)
         return x
-
 
 
 # alternative models, LSTM based, we should add GRU as well
@@ -205,12 +273,15 @@ class EEG2AccelModel(nn.Module):
         x = self.flatten(x)
 
         # Reshape for LSTM
-        x = x.view(x.size(0), -1, x.size(1))  # Reshape input for LSTM: (batch_size, seq_len, features)
+        x = x.view(
+            x.size(0), -1, x.size(1)
+        )  # Reshape input for LSTM: (batch_size, seq_len, features)
 
         # Apply LSTM layers
         lstm_out, (hidden, _) = self.lstm(x)
         x = self.fc(lstm_out[:, -1, :])  # Use the output of the last time step
         return x
+
 
 class EEGModel(torch.nn.Module):
     def __init__(
@@ -220,7 +291,6 @@ class EEGModel(torch.nn.Module):
 
     def forward(self, x):
         pass
-
 
 
 """
@@ -275,7 +345,6 @@ class CNN1D(nn.Module):
         output_tensor = output_tensor[:, :, : self.sequence_length]
         return output_tensor
 """
-
 
 
 """
