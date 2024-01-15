@@ -148,8 +148,8 @@ class RegionalTransformer(nn.Module):
         x = x + self.positional_encoding
 
         # Apply the transformer
-
-        x = self.layers(x)
+        for layer in self.layers:
+            x = layer(x)
         print("x shape after transformer", x.shape)
         return x
 

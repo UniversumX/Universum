@@ -59,7 +59,7 @@ def test_regional_tranformer():
         num_heads,
         ff_dim,
         num_layers,
-        sequence_length - one_d_cnn.j,
+        sequence_length - 6,
         latent_dim,
         dropout=0.1,
     )
