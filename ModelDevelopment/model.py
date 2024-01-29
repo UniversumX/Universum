@@ -174,7 +174,7 @@ class SynchronousTransformer(nn.Module):
 
 class TemporalTransformer(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=1.1):
-        super(RegionalTransformer, self).__init__()
+        super(TemporalTransformer, self).__init__()
         self.layers = nn.ModuleList(
             [
                 TransformerBlock(input_dim, num_heads, ff_dim, dropout)
