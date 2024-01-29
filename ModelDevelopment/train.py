@@ -5,6 +5,12 @@ from model import EEGFormerForRegression
 from dataset import EEGAccelDataset
 from torch.utils.data import Dataset, DataLoader
 
+"""
+TODO:
+- Change 3D accelerometer data to 2D
+
+"""
+
 
 def get_data_loader(edf_file_path, segment_length, batch_size, transform=None):
     dataset = EEGAccelDataset(edf_file_path, segment_length, transform=transform)
@@ -72,6 +78,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop
 for epoch in range(num_epochs):
+    total_loss = 0
     for eeg_data, accel_data in train_loader:
         # Forward pass
         outputs = model(eeg_data)
@@ -86,9 +93,10 @@ for epoch in range(num_epochs):
         # Backward and optimize
         optimizer.zero_grad()
         loss.backward()
+        total_loss += loss.item()
         optimizer.step()
 
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss:.4f}")
 
     # Evaluate the model
     model.eval()  # Set the model to evaluation mode
