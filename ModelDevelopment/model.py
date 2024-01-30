@@ -136,6 +136,7 @@ class RegionalTransformer(nn.Module):
         Assuming that the input from the 2DCNN is:
          (batch_size, n_channels, sequence_length, features)
         """
+        # TODO: Add test cases/asserts to make sure this works as expected
         # Extract the features from the lenghts
         x = x.permute(
             0, 1, 3, 2
@@ -192,20 +193,20 @@ class TemporalTransformer(nn.Module):
 class EEGformerEncoder(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=1.1):
         super(EEGformerEncoder, self).__init__()
-        self.temporal_transformer = TemporalTransformer(
+        self.regional_transformer = RegionalTransformer(
             input_dim, num_heads, ff_dim, num_layers, dropout
         )
         self.synchronous_transformer = SynchronousTransformer(
             input_dim, num_heads, ff_dim, num_layers, dropout
         )
-        self.regional_transformer = RegionalTransformer(
+        self.temporal_transformer = TemporalTransformer(
             input_dim, num_heads, ff_dim, num_layers, dropout
         )
 
     def forward(self, x):
-        x = self.temporal_transformer(x)
-        x = self.synchronous_transformer(x)
         x = self.regional_transformer(x)
+        x = self.synchronous_transformer(x)
+        x = self.temporal_transformer(x)
         return x
 
 
@@ -217,12 +218,13 @@ class EEGformerDecoderForRegression(nn.Module):
         self.fc3 = nn.Linear(
             hidden_dim, output_dim
         )  # output_dim should match the accelerometer data dimension
-        # self.fc3 = nn.Linear(hidden_dim, 3 * 1000)  # Adjust for the desired output shape
 
     def forward(self, x):
+        """ """
+        # TODO: Why is there two layers here? Why not just one?
         x = F.relu(self.fc2(x))
         x = self.fc3(x)  # No activation, as this is a regression task
-        x = x.view(0, 3, 1000)  # Reshape to (B, 3, 1000)
+
         return x
 
 
