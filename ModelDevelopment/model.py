@@ -188,6 +188,28 @@ class TemporalTransformer(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return x
+    # TODO Establishing the latent vector
+    def Ztemp():
+        
+        #XtempL = nn.Flatten(0, 1)
+        return Xtemp1
+         #to concatenate tensors: torch.cat([tensor1, tensor2], dim = 0)
+         
+    # TODO implement the Temporal q, k, and v functions, we may just be able to generalize a function to encompass these vectors for every module
+    def qTemp():
+        return x
+    def kTemp():
+        return x
+    def vTemp():
+        return x
+        # TODO implement the TSA function
+    def TSA(k, q, sigma):
+        return x
+        # TODO implement the immediate vector function
+    def ITempVector(TSA, vTemp):
+        return x
+
+
 
 
 class EEGformerEncoder(nn.Module):
