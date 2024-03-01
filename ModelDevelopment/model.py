@@ -50,6 +50,12 @@ class CNN1D(nn.Module):
         )
 
     def forward(self, x):
+        """
+        This will take in a sequence with dimensions:
+        (batch_size, n_channels, sequence_length)
+        and will output a sequence with dimensions:
+        (batch_size, n_channels, convolution_dimension_length, sequence_length - 2 * n_1d_cnn_layers)
+        """
         # Apply initial depth-wise convolution
         output = self.initial_conv(x)
 
@@ -96,7 +102,9 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x):
         # Self-attention layer
-        attn_output, _ = self.attention(x, x, x)
+        attn_output, _ = self.attention(
+            x, x, x
+        )  # NOTE: Is it valid that the query, key, and value are all the same?
         x = x + self.dropout(attn_output)
         x = self.layer_norm2(x)
 
@@ -126,27 +134,70 @@ class RegionalTransformer(nn.Module):
                 for _ in range(num_layers)
             ]
         )
-        self.latent_mapping_matrix = nn.Parameter(torch.randn(latent_dim, input_dim))
-        self.positional_encoding = nn.Parameter(
+        self.latent_dim = latent_dim
+        self.latent_mapping_matrix = nn.Parameter(
             torch.randn(latent_dim, sequence_length)
+        )
+        self.positional_encoding = nn.Parameter(
+            torch.randn(latent_dim)
         )  # NOTE: The model is learning a positional embedding for ever channel along every convolution feature, maybe this should just learn along every convolutional feature?
 
+    # def forward(self, x):
+    #     """
+    #     Assuming that the input from the 2DCNN is:
+    #      (batch_size, n_channels, sequence_length, convolutional_dimension)
+    #     """
+    #     # TODO: Add test cases/asserts to make sure this works as expected
+    #     # Extract the features from the lenghts
+    #     x = x.permute(
+    #         0, 1, 3, 2
+    #     )  # Now is (batch_size, n_channels, convolution_dimension_length, sequence_length)
+    #     print("x shape after permute", x.shape)
+    #     # Convert x to the latent dimesion.
+    #     # for batch in x:
+    #     #     for channel in batch:
+    #     #         for feature in channel:
+    #     #             print("feature shape", feature.shape)
+    #     #             print(
+    #     #                 "latent mapping matrix shape", self.latent_mapping_matrix.shape
+    #     #             )
+    #     #             feature = torch.matmul(
+    #     #                 self.latent_mapping_matrix, torch.unsqueeze(feature, 1)
+    #     #             )  # NOTE: In order for the dimensions to work, I need to unsqueese the feature, I think this migth be an error?!?
+    #     #             feature = feature.squeeze(1)
+    #     #             # print("feature shape after matmul", feature.shape)
+    #     #             # print("positional encoding", self.positional_encoding.shape)
+    #     #             feature += self.positional_encoding
+    #     #             print("feature shape after positional encoding", feature.shape)
+    #     #             print("layers[0] on feature", self.layers[0](feature))
+    #     #             normalized = torch.layer_norm(feature, feature.shape)
+    #     # print(
+    #     #     "first layer attention shape",
+    #     #     self.layers[0].attention.in_proj_weight.shape,
+    #     # )
+    #     # x = torch.matmul(self.latent_mapping_matrix, x)
+    #     # assert x.shape[2] == self.latent_dim
+    #     # print("x shape after mat mul", x.shape)
+    #     # # Add positional encoding
+    #     # x = x + self.positional_encoding
+    #
+    #     # Apply the transformer
+    #     for layer in self.layers:
+    #         x = layer(x)
+    #     print("x shape after transformer", x.shape)
+    #     return x
     def forward(self, x):
         """
         Assuming that the input from the 2DCNN is:
-         (batch_size, n_channels, sequence_length, features)
+         (batch_size, n_channels, sequence_length, convolutional_dimension)
         """
         # TODO: Add test cases/asserts to make sure this works as expected
         # Extract the features from the lenghts
-        x = x.permute(
-            0, 1, 3, 2
-        )  # Now is (batch_size, n_channels, features, sequence_length)
+        _batch_size, _n_channels, _sequence_length, _convolutional_dimension = x.shape
+        x = x.view(_n_channels, _batch_size, _convolutional_dimension, _sequence_length)
+        for matrix in x:
+            
         print("x shape after permute", x.shape)
-        # Convert x to the latent dimesion.
-        x = torch.matmul(self.latent_mapping_matrix, x)
-        print("x shape after mat mul", x.shape)
-        # Add positional encoding
-        x = x + self.positional_encoding
 
         # Apply the transformer
         for layer in self.layers:
