@@ -239,6 +239,48 @@ class TemporalTransformer(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return x
+    
+    def segment_average(z5, M):
+        segment_size = D // M
+        segmented_matrices = []
+        #segment along the temporal
+        for i in range(M):
+        #start and end index
+            start_idx = i * segment_size
+            end_idx = (i + 1) * segment_size
+        
+        #extract the segment
+            segment = z5[:, :, start_idx:end_idx]
+        
+        #average along the temporal dimension
+            averaged_segment = torch.mean(segment, dim=2, keepdims=True)
+        
+        #append segment to list
+            segmented_matrices.append(averaged_segment)
+        Xtemp = torch.cat(segmented_matrices, dim=2) 
+        return Xtemp
+    # TODO Establishing the latent vector
+    def Ztemp(Xtemp):
+        
+        #XtempL = nn.Flatten(0, 1)
+        return Xtemp1
+         #to concatenate tensors: torch.cat([tensor1, tensor2], dim = 0)
+         
+    # TODO implement the Temporal q, k, and v functions, we may just be able to generalize a function to encompass these vectors for every module
+    def qTemp():
+        return x
+    def kTemp():
+        return x
+    def vTemp():
+        return x
+        # TODO implement the TSA function
+    def TSA(k, q, sigma):
+        return x
+        # TODO implement the immediate vector function
+    def ITempVector(TSA, vTemp):
+        return x
+
+
 
 
 class EEGformerEncoder(nn.Module):
