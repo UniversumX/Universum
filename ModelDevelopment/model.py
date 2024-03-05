@@ -39,7 +39,8 @@ class CNN1D(nn.Module):
         # Subsequent depth-wise convolution layers
         self.subsequent_convs = nn.ModuleList(
             [
-                nn.ModuleList(
+                item
+                for sublist in [
                     [
                         nn.Dropout(dropout),
                         nn.Conv1d(
@@ -50,8 +51,9 @@ class CNN1D(nn.Module):
                             padding="valid",
                         ),
                     ]
-                )
-                for _ in range(1, n_1d_cnn_layers)
+                    for _ in range(1, n_1d_cnn_layers)
+                ]
+                for item in sublist
             ]
         )
 
