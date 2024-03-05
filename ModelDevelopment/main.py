@@ -6,6 +6,19 @@ config = {}
 # m = EEGModel(config)
 
 
+class TestingModel1:
+    def __init__(self, config):
+        self.config = config
+        self.cnn1d = CNN1D(
+            config.sequence_length,
+            config.convolution_dimension_length,
+            config.kernel_size,
+            config.n_1d_cnn_layers,
+            config.n_channels,
+            config.dropout,
+        )
+
+
 def test_cnn1d() -> CNN1D:
     batch_size = 10  # Number of samples in a batch
     sequence_length = 1000  # Number of sampled points per channel
