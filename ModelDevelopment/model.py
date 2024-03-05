@@ -16,6 +16,7 @@ class CNN1D(nn.Module):
         kernel_size: int,
         n_1d_cnn_layers: int,
         n_channels=8,
+        dropout=0.1,
     ):
         super(CNN1D, self).__init__()
         self.n_channels = n_channels
@@ -38,12 +39,17 @@ class CNN1D(nn.Module):
         # Subsequent depth-wise convolution layers
         self.subsequent_convs = nn.ModuleList(
             [
-                nn.Conv1d(
-                    n_channels * convolution_dimension_length,
-                    n_channels * convolution_dimension_length,
-                    kernel_size=kernel_size,
-                    groups=convolution_dimension_length,
-                    padding="valid",
+                nn.ModuleList(
+                    [
+                        nn.Dropout(dropout),
+                        nn.Conv1d(
+                            n_channels * convolution_dimension_length,
+                            n_channels * convolution_dimension_length,
+                            kernel_size=kernel_size,
+                            groups=convolution_dimension_length,
+                            padding="valid",
+                        ),
+                    ]
                 )
                 for _ in range(1, n_1d_cnn_layers)
             ]
