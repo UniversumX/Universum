@@ -62,6 +62,7 @@ def test_regional_tranformer():
         sequence_length - 6,
         latent_dim,
         dropout=0.1,
+        verbose=True,
     )
     synthetic_eeg_data = torch.randn(10, 8, 1000)
     output = one_d_cnn(synthetic_eeg_data)
