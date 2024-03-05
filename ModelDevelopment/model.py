@@ -234,69 +234,26 @@ class SynchronousTransformer(nn.Module):
         Assuming that the input from the
          (batch_size, n_channels, convolutional_dimension, latent_dim)
         """
-        # TODO: Add test cases/asserts to make sure this works as expected
-        # Extract the features from the lenghts
         batch_size, n_channels, convolution_dimension_length, latent_dim = x.shape
-        # x = x.flatten(2,3)
-        # Convert x to the latent dimesion.
-        # for batch in x: # imma be h i think there is a better way to do this
-        #     for channel in batch:
-        #         for feature in channel:
-        #             print("feature shape", feature.shape)
-        #             print(
-        #                 "latent mapping matrix shape", self.latent_mapping_matrix.shape
-        #             )
-        #             feature = torch.matmul(
-        #                 self.latent_mapping_matrix, torch.unsqueeze(feature, 1)
-        #             )  # NOTE: In order for the dimensions to work, I need to unsqueese the feature, I think this migth be an error?!?
-        #             feature = feature.squeeze(1)
-        #             # print("feature shape after matmul", feature.shape)
-        #             # print("positional encoding", self.positional_encoding.shape)
-        #             feature += self.positional_encoding
-        #             print("feature shape after positional encoding", feature.shape)
-        #             print("layers[0] on feature", self.layers[0](feature))
-        #             normalized = torch.layer_norm(feature, feature.shape)
-        #             print("normalized feature", normalized)
-        #
-        #             query = self.query_weight_matrix @ normalized
-        #             assert(query.shape == (self.latent_dim, 1))
-        #
-        #             key = self.key_weight_matrix @ normalized
-        #             assert (key.shape == (self.latent_dim, 1))
-        #
-        #             value = self.value_weight_matrix @ normalized
-        #             assert (value.shape == (self.latent_dim, 1))
-        #
-        #             attention = torch.dot
-
-        #     print(
-        #     "first layer attention shape",
-        #     self.layers[0].attention.in_proj_weight.shape,
-        # )
-        if self.verbose > 0:
-            print("x shape before mat mul", x.shape)
-            print(
-                "latent mapping matrix shape",
-                self.latent_mapping_matrix.unsqueeze(0).unsqueeze(0).shape,
-            )
-        x = torch.matmul(
-            x, self.latent_mapping_matrix.T
-        )  # NOTE: This is the only way I can get the shapes to work, this might be wrongi
-        if self.verbose > 0:
-            print("x shape after mat mul", x.shape)
+        # NOTE: This is the only way I can get the shapes to work, this might be wrongi
+        x = torch.matmul(x, self.latent_mapping_matrix.T)
         x = x + self.positional_encoding
+        self.log("x shape after mat mul", x.shape)
 
         # Apply the transformer
         for layer in self.layers:
             x = layer(x)
-        if self.verbose > 0:
-            print("x shape after transformer", x.shape)
+        self.log("x shape after transformer", x.shape)
         x = x.view(
             batch_size, n_channels, convolution_dimension_length, self.latent_dim
         )  #               S                  C                          D
 
         return x
-        return x
+
+    def log(self, *args):
+
+        if self.verbose > 0:
+            print(*args)
 
 
 class TemporalTransformer(nn.Module):
