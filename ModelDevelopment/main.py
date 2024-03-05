@@ -4,19 +4,46 @@ import torch
 config = {}
 
 # m = EEGModel(config)
+generate_synthetic_eeg_data = torch.rand
 
 
 class TestingModel1:
-    def __init__(self, config):
+    def __init__(self, config, output_size):
         self.config = config
         self.cnn1d = CNN1D(
-            config.sequence_length,
-            config.convolution_dimension_length,
-            config.kernel_size,
-            config.n_1d_cnn_layers,
-            config.n_channels,
-            config.dropout,
+            config["sequence_length"],
+            config["convolution_dimension_length"],
+            config["kernel_size"],
+            config["n_1d_cnn_layers"],
+            config["n_channels"],
+            config["dropout"],
         )
+        self.regional_transformer = RegionalTransformer(
+            config["input_dim"],
+            config["num_heads"],
+            config["ff_dim"],
+            config["num_layers"],
+            config["sequence_length"] - 6,
+            config["latent_dim"],
+            config["dropout"],
+            config["verbose"],
+        )
+
+        self.feed_forward = torch.nn.Linear(
+            config["convolution_dimension_length"]
+            * config["n_channels"]
+            * config["latent_dim"],
+            output_size,
+        )
+
+    def forward(self, x):
+        bath_size, _, _ = x.shape
+        x = self.cnn1d(x)
+        x = self.regional_transformer(x)
+        x = x.view(bath_size, -1)
+        print(x.shape)
+        x = self.feed_forward(x)
+        return x
 
 
 def test_cnn1d() -> CNN1D:
@@ -77,11 +104,30 @@ def test_regional_tranformer():
         dropout=0.1,
         verbose=True,
     )
-    synthetic_eeg_data = torch.randn(10, 8, 1000)
+    synthetic_eeg_data = generate_synthetic_eeg_data(10, 8, 1000)
     output = one_d_cnn(synthetic_eeg_data)
     print("output shape", output.shape)
     output = regional_transformer(output)
     print("output shape", output.shape)
 
 
-test_regional_tranformer()
+def test_regional_tranformer_frfr():
+    config = {
+        "sequence_length": 1000,
+        "convolution_dimension_length": 64,
+        "kernel_size": 3,
+        "n_1d_cnn_layers": 3,
+        "n_channels": 8,
+        "dropout": 0.1,
+        "input_dim": 64,
+        "num_heads": 4,
+        "ff_dim": 256,
+        "num_layers": 2,
+        "latent_dim": 128,
+        "verbose": True,
+    }
+    model = TestingModel1(config, 3)
+    model.forward(generate_synthetic_eeg_data(10, 8, 1000))
+
+
+test_regional_tranformer_frfr()
