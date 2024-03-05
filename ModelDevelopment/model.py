@@ -126,11 +126,13 @@ class RegionalTransformer(nn.Module):
         sequence_length,
         latent_dim,
         dropout=0.1,
+        verbose=0,
     ):
         super(RegionalTransformer, self).__init__()
+        self.verbose = verbose
         self.layers = nn.ModuleList(
             [
-                TransformerBlock(input_dim, num_heads, ff_dim, dropout)
+                TransformerBlock(latent_dim, num_heads, ff_dim, dropout)
                 for _ in range(num_layers)
             ]
         )
@@ -142,6 +144,43 @@ class RegionalTransformer(nn.Module):
             torch.randn(latent_dim)
         )  # NOTE: The model is learning a positional embedding for ever channel along every convolution feature, maybe this should just learn along every convolutional feature?
 
+    def forward(self, x):
+        """
+        Assuming that the input from the 1DCNN is:
+         (batch_size, n_channels, sequence_length, convolutional_dimension)
+        """
+        # TODO: Add test cases/asserts to make sure this works as expected
+        # Extract the features from the lenghts
+        x = x.permute(
+            0, 1, 3, 2
+        )  # Now is (batch_size, n_channels, convolution_dimension_length, sequence_length)
+        batch_size, n_channels, convolution_dimension_length, sequence_length = x.shape
+        if self.verbose > 0:
+            print("x shape before mat mul", x.shape)
+            print(
+                "latent mapping matrix shape",
+                self.latent_mapping_matrix.unsqueeze(0).unsqueeze(0).shape,
+            )
+        # x = x.view(-1, sequence_length)
+        x = torch.matmul(x, self.latent_mapping_matrix.T)
+        if self.verbose > 0:
+            print("x shape after mat mul", x.shape)
+        x = x + self.positional_encoding
+        x = x.view(
+            batch_size, n_channels * convolution_dimension_length, self.latent_dim
+        )  # noqa: F821
+
+        # Apply the transformer
+        for layer in self.layers:
+            x = layer(x)
+        if self.verbose > 0:
+            print("x shape after transformer", x.shape)
+        x = x.view(
+            batch_size, n_channels, convolution_dimension_length, self.latent_dim
+        )  #               S                  C                          D
+
+        return x
+
     # def forward(self, x):
     #     """
     #     Assuming that the input from the 2DCNN is:
@@ -149,78 +188,114 @@ class RegionalTransformer(nn.Module):
     #     """
     #     # TODO: Add test cases/asserts to make sure this works as expected
     #     # Extract the features from the lenghts
-    #     x = x.permute(
-    #         0, 1, 3, 2
-    #     )  # Now is (batch_size, n_channels, convolution_dimension_length, sequence_length)
+    #     _batch_size, _n_channels, _sequence_length, _convolutional_dimension = x.shape
+    #     x = x.view(_n_channels, _batch_size, _convolutional_dimension, _sequence_length)
+    #     for matrix in x:
+    #
     #     print("x shape after permute", x.shape)
-    #     # Convert x to the latent dimesion.
-    #     # for batch in x:
-    #     #     for channel in batch:
-    #     #         for feature in channel:
-    #     #             print("feature shape", feature.shape)
-    #     #             print(
-    #     #                 "latent mapping matrix shape", self.latent_mapping_matrix.shape
-    #     #             )
-    #     #             feature = torch.matmul(
-    #     #                 self.latent_mapping_matrix, torch.unsqueeze(feature, 1)
-    #     #             )  # NOTE: In order for the dimensions to work, I need to unsqueese the feature, I think this migth be an error?!?
-    #     #             feature = feature.squeeze(1)
-    #     #             # print("feature shape after matmul", feature.shape)
-    #     #             # print("positional encoding", self.positional_encoding.shape)
-    #     #             feature += self.positional_encoding
-    #     #             print("feature shape after positional encoding", feature.shape)
-    #     #             print("layers[0] on feature", self.layers[0](feature))
-    #     #             normalized = torch.layer_norm(feature, feature.shape)
-    #     # print(
-    #     #     "first layer attention shape",
-    #     #     self.layers[0].attention.in_proj_weight.shape,
-    #     # )
-    #     # x = torch.matmul(self.latent_mapping_matrix, x)
-    #     # assert x.shape[2] == self.latent_dim
-    #     # print("x shape after mat mul", x.shape)
-    #     # # Add positional encoding
-    #     # x = x + self.positional_encoding
     #
     #     # Apply the transformer
     #     for layer in self.layers:
     #         x = layer(x)
     #     print("x shape after transformer", x.shape)
     #     return x
-    def forward(self, x):
-        """
-        Assuming that the input from the 2DCNN is:
-         (batch_size, n_channels, sequence_length, convolutional_dimension)
-        """
-        # TODO: Add test cases/asserts to make sure this works as expected
-        # Extract the features from the lenghts
-        _batch_size, _n_channels, _sequence_length, _convolutional_dimension = x.shape
-        x = x.view(_n_channels, _batch_size, _convolutional_dimension, _sequence_length)
-        for matrix in x:
-            
-        print("x shape after permute", x.shape)
-
-        # Apply the transformer
-        for layer in self.layers:
-            x = layer(x)
-        print("x shape after transformer", x.shape)
-        return x
 
 
 # TODO implement
 class SynchronousTransformer(nn.Module):
-    def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=1.1):
+    def __init__(
+        self,
+        input_dim,
+        num_heads,
+        ff_dim,
+        num_layers,
+        sequence_length,
+        latent_dim,
+        dropout=0.1,
+        verbose=0,
+    ):
         super(SynchronousTransformer, self).__init__()
+        self.verbose = verbose
         self.layers = nn.ModuleList(
             [
                 TransformerBlock(input_dim, num_heads, ff_dim, dropout)
                 for _ in range(num_layers)
             ]
         )
+        self.latent_dim = latent_dim
+        self.latent_mapping_matrix = nn.Parameter(torch.randn(latent_dim, latent_dim))
+        self.positional_encoding = nn.Parameter(
+            torch.randn(latent_dim)
+        )  # NOTE: The model is learning a positional embedding for ever channel along every convolution feature, maybe this should just learn along every convolutional feature?
 
     def forward(self, x):
-        # x should be organized to emphasize synchronous aspects
+        # bro lowkey this is the same as the previousone
+        """
+        Assuming that the input from the
+         (batch_size, n_channels, convolutional_dimension, latent_dim)
+        """
+        # TODO: Add test cases/asserts to make sure this works as expected
+        # Extract the features from the lenghts
+        batch_size, n_channels, convolution_dimension_length, latent_dim = x.shape
+        # x = x.flatten(2,3)
+        # Convert x to the latent dimesion.
+        # for batch in x: # imma be h i think there is a better way to do this
+        #     for channel in batch:
+        #         for feature in channel:
+        #             print("feature shape", feature.shape)
+        #             print(
+        #                 "latent mapping matrix shape", self.latent_mapping_matrix.shape
+        #             )
+        #             feature = torch.matmul(
+        #                 self.latent_mapping_matrix, torch.unsqueeze(feature, 1)
+        #             )  # NOTE: In order for the dimensions to work, I need to unsqueese the feature, I think this migth be an error?!?
+        #             feature = feature.squeeze(1)
+        #             # print("feature shape after matmul", feature.shape)
+        #             # print("positional encoding", self.positional_encoding.shape)
+        #             feature += self.positional_encoding
+        #             print("feature shape after positional encoding", feature.shape)
+        #             print("layers[0] on feature", self.layers[0](feature))
+        #             normalized = torch.layer_norm(feature, feature.shape)
+        #             print("normalized feature", normalized)
+        #
+        #             query = self.query_weight_matrix @ normalized
+        #             assert(query.shape == (self.latent_dim, 1))
+        #
+        #             key = self.key_weight_matrix @ normalized
+        #             assert (key.shape == (self.latent_dim, 1))
+        #
+        #             value = self.value_weight_matrix @ normalized
+        #             assert (value.shape == (self.latent_dim, 1))
+        #
+        #             attention = torch.dot
+
+        #     print(
+        #     "first layer attention shape",
+        #     self.layers[0].attention.in_proj_weight.shape,
+        # )
+        if self.verbose > 0:
+            print("x shape before mat mul", x.shape)
+            print(
+                "latent mapping matrix shape",
+                self.latent_mapping_matrix.unsqueeze(0).unsqueeze(0).shape,
+            )
+        x = torch.matmul(
+            x, self.latent_mapping_matrix.T
+        )  # NOTE: This is the only way I can get the shapes to work, this might be wrongi
+        if self.verbose > 0:
+            print("x shape after mat mul", x.shape)
+        x = x + self.positional_encoding
+
+        # Apply the transformer
         for layer in self.layers:
             x = layer(x)
+        if self.verbose > 0:
+            print("x shape after transformer", x.shape)
+        x = x.view(
+            batch_size, n_channels, convolution_dimension_length, self.latent_dim
+        )  #               S                  C                          D
+
+        return x
         return x
 
 
@@ -239,48 +314,51 @@ class TemporalTransformer(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return x
-    
+
     def segment_average(z5, M):
         segment_size = D // M
         segmented_matrices = []
-        #segment along the temporal
+        # segment along the temporal
         for i in range(M):
-        #start and end index
+            # start and end index
             start_idx = i * segment_size
             end_idx = (i + 1) * segment_size
-        
-        #extract the segment
+
+            # extract the segment
             segment = z5[:, :, start_idx:end_idx]
-        
-        #average along the temporal dimension
+
+            # average along the temporal dimension
             averaged_segment = torch.mean(segment, dim=2, keepdims=True)
-        
-        #append segment to list
+
+            # append segment to list
             segmented_matrices.append(averaged_segment)
-        Xtemp = torch.cat(segmented_matrices, dim=2) 
+        Xtemp = torch.cat(segmented_matrices, dim=2)
         return Xtemp
+
     # TODO Establishing the latent vector
     def Ztemp(Xtemp):
-        
-        #XtempL = nn.Flatten(0, 1)
+
+        # XtempL = nn.Flatten(0, 1)
         return Xtemp1
-         #to concatenate tensors: torch.cat([tensor1, tensor2], dim = 0)
-         
+        # to concatenate tensors: torch.cat([tensor1, tensor2], dim = 0)
+
     # TODO implement the Temporal q, k, and v functions, we may just be able to generalize a function to encompass these vectors for every module
     def qTemp():
         return x
+
     def kTemp():
         return x
+
     def vTemp():
         return x
         # TODO implement the TSA function
+
     def TSA(k, q, sigma):
         return x
         # TODO implement the immediate vector function
+
     def ITempVector(TSA, vTemp):
         return x
-
-
 
 
 class EEGformerEncoder(nn.Module):
