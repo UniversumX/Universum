@@ -347,22 +347,22 @@ class EEGformerEncoder(nn.Module):
 
 
 # ERROR: THIS IS WRONG
-# class EEGformerDecoderForRegression(nn.Module):
-#     def __init__(self, input_dim, hidden_dim, output_dim):
-#         super(EEGformerDecoderForRegression, self).__init__()
-#         # Assuming input_dim is the output feature size from the encoder
-#         self.fc2 = nn.Linear(input_dim, hidden_dim)
-#         self.fc3 = nn.Linear(
-#             hidden_dim, output_dim
-#         )  # output_dim should match the accelerometer data dimension
-#
-#     def forward(self, x):
-#         """ """
-#         # TODO: Why is there two layers here? Why not just one?
-#         x = F.relu(self.fc2(x))
-#         x = self.fc3(x)  # No activation, as this is a regression task
-#
-#         return x
+class EEGformerDecoderForRegression(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(EEGformerDecoderForRegression, self).__init__()
+        # Assuming input_dim is the output feature size from the encoder
+        self.fc2 = nn.Linear(input_dim, hidden_dim)
+        self.fc3 = nn.Linear(
+            hidden_dim, output_dim
+        )  # output_dim should match the accelerometer data dimension
+
+    def forward(self, x):
+        """ """
+        # TODO: Why is there two layers here? Why not just one?
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)  # No activation, as this is a regression task
+
+        return x
 
 class EEGFormerDecoderForBinning(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim):
