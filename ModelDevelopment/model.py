@@ -265,66 +265,43 @@ class SynchronousTransformer(nn.Module):
 
 
 class TemporalTransformer(nn.Module):
-    def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=1.1):
+    def __init__(self, input_dim, num_heads, ff_dim, num_layers, segment_length, latent_dim, dropout=1.1, verbose=0) :
         super(TemporalTransformer, self).__init__()
+        self.verbose = verbose
         self.layers = nn.ModuleList(
             [
                 TransformerBlock(input_dim, num_heads, ff_dim, dropout)
                 for _ in range(num_layers)
             ]
         )
+        self.latent_dim = latent_dim
+        self.latent_mapping_matrix = nn.Parameter(
+            torch.randn(latent_dim, segment_length)
+        )
+        self.positional_encoding = nn.Parameter(
+            torch.randn(latent_dim)
+        )
 
     def forward(self, x):
-        # x should be organized to emphasize regional aspects
+    
+        batch_size, convolutional_dimension_length, n_channels, self.latent_dim = x.shape
+        x = torch.matmul(x, self.latent_mapping_matrix.T)
+        if self.verbose > 0:
+            print("x shape after mat mul: ", x.shape)
+            print(
+                "latent mapping matrix shape",
+                self.latent_mapping_matrix.unsqueeze(0).unsqueeze(0).shape, 
+            )
+            x = x + self.positional_encoding
+            x = x.view(batch_size, convolutional_dimension_length, self.latent_dim)
+            
         for layer in self.layers:
             x = layer(x)
+        if self.verbose > 0:
+            print("x shape after transformer: ", x.shape)
+        x = x.view(batch_size, convolutional_dimension_length, self.latent_dim)
+    
         return x
-
-    def segment_average(z5, M):
-        segment_size = D // M
-        segmented_matrices = []
-        # segment along the temporal
-        for i in range(M):
-            # start and end index
-            start_idx = i * segment_size
-            end_idx = (i + 1) * segment_size
-
-            # extract the segment
-            segment = z5[:, :, start_idx:end_idx]
-
-            # average along the temporal dimension
-            averaged_segment = torch.mean(segment, dim=2, keepdims=True)
-
-            # append segment to list
-            segmented_matrices.append(averaged_segment)
-        Xtemp = torch.cat(segmented_matrices, dim=2)
-        return Xtemp
-
-    # TODO Establishing the latent vector
-    def Ztemp(Xtemp):
-
-        # XtempL = nn.Flatten(0, 1)
-        return Xtemp1
-        # to concatenate tensors: torch.cat([tensor1, tensor2], dim = 0)
-
-    # TODO implement the Temporal q, k, and v functions, we may just be able to generalize a function to encompass these vectors for every module
-    def qTemp():
-        return x
-
-    def kTemp():
-        return x
-
-    def vTemp():
-        return x
-        # TODO implement the TSA function
-
-    def TSA(k, q, sigma):
-        return x
-        # TODO implement the immediate vector function
-
-    def ITempVector(TSA, vTemp):
-        return x
-
 
 class EEGformerEncoder(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=1.1):
@@ -539,5 +516,39 @@ Example
 Consider an EEG dataset with readings from multiple channels over time. For the Synchronous Transformer, you'd organize the data so that for each time step, the feature vector represents concurrent readings from all channels. For the Regional Transformer, you'd organize the data to focus on spatial patterns, perhaps grouping channels according to their location on the scalp.
 
 In essence, while the transformer architecture is capable of capturing complex relationships in the data, it's the way the data is presented to each transformer that directs its focus towards temporal, synchronous, or regional aspects of the EEG signal.
+
+"""
+"""
+Test Cases For Temporal:
+
+input_dim = 32
+num_heads = 4
+ff_dim = 64
+num_layers = 3
+latent_dim = 128
+dropout = 0.1
+segment_length = 16
+batch_size = 10
+convolution_dimension_length = 20
+sequence_length = 30
+
+sample_input = torch.randn(batch_size, input_dim, convolution_dimension_length, sequence_length)
+
+# Create an instance of TemporalTransformer
+transformer = TemporalTransformer(input_dim, num_heads, ff_dim, num_layers, latent_dim, segment_length, dropout=dropout)
+
+# Pass the sample input through the transformer
+output = transformer(sample_input)
+
+# Print the shapes of the input and output tensors
+print("Input shape:", sample_input.shape)
+print("Output shape:", output.shape)
+
+
+
+
+
+
+
 
 """
