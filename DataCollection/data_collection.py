@@ -20,31 +20,7 @@ import sys
 import asyncio
 from datetime import datetime
 
-"""
-Ensure you have the necessary packages installed in your environment:
 
-influxdb-client for InfluxDB interaction.
-python-dotenv for environment variable management.
-"""
-
-# Assuming you have set up InfluxDB credentials as environment variables
-influxdb_url = os.getenv('INFLUXDB_URL')
-token = os.getenv('INFLUXDB_TOKEN')
-org = os.getenv('INFLUXDB_ORG')
-bucket = os.getenv('INFLUXDB_BUCKET')
-
-# Setting up argparse to accept a collection duration from the command line
-parser = argparse.ArgumentParser(description='EEG and Accelerometer Data Collection')
-parser.add_argument('--duration', type=int, help='Duration for data collection in seconds', default=60)
-args = parser.parse_args()
-
-# Use args.duration as the time to run the data collection
-collection_duration = args.duration
-import argparse
-import signal
-import sys
-import asyncio
-from datetime import datetime
 
 """
 Ensure you have the necessary packages installed in your environment:
