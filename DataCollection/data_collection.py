@@ -63,10 +63,6 @@ neurosity.login({
 })
 
 
-# Initialize InfluxDB client
-client = InfluxDBClient(url=influxdb_url, token=token, org=org)
-write_api = client.write_api(write_options=SYNCHRONOUS)
-
 
 # Initialize InfluxDB client
 client = InfluxDBClient(url=influxdb_url, token=token, org=org)
@@ -121,7 +117,7 @@ def handle_eeg_data(data):
                 'y': '',
                 'z': ''
             })
-            
+
             # write to influx
             write_api.write(bucket=bucket, org=org, record=point)
             
