@@ -161,14 +161,14 @@ This script uses a blocking time.sleep for simplicity. For a more responsive or 
 Running this script directly from the CLI and providing the --duration argument lets you specify how long you want to collect data for.
 Pressing CTRL+C will trigger the emergency stop, immediately terminating the data collection and ensuring a clean exit.
     """
-    Notes:
+
+    
+    """
+        Notes:
 Replace handle_eeg_data and handle_accelerometer_data with the correct logic for handling your data. The given examples are placeholders and need to be adapted to the actual data structure provided by the Neurosity SDK.
 The write_data_to_influx function is a simplified method to write data to InfluxDB. Ensure the data structure (data dictionary passed to it) matches what you intend to store.
 This script uses a blocking time.sleep for simplicity. For a more responsive or complex application, consider using asynchronous programming patterns or threading.
 Running this script directly from the CLI and providing the --duration argument lets you specify how long you want to collect data for.
 Pressing CTRL+C will trigger the emergency stop, immediately terminating the data collection and ensuring a clean exit.
 
-    
-    """
-    
     """
