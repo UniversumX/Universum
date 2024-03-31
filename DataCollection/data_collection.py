@@ -1,14 +1,13 @@
 
 from neurosity import NeurositySDK
 from dotenv import load_dotenv
-import os
-from neurosity_sdk import NeurosityCrown  # This is hypothetical; replace with the actual import
-from influxdb_client import InfluxDBClient
+import os  
+from influxdb_client import InfluxDBClient # This is hypothetical; replace with the actual import
 import time
 
-NEUROSITY_EMAIL=your email here
-NEUROSITY_PASSWORD=your password here
-NEUROSITY_DEVICE_ID=your device id here
+NEUROSITY_EMAIL=#your email here
+NEUROSITY_PASSWORD=#your password here
+NEUROSITY_DEVICE_ID=#your device id here
 
 
 load_dotenv()
@@ -26,8 +25,9 @@ neurosity.login({
 db_client = InfluxDBClient(url="your_db_url", token="your_db_token", org="your_org")
 
 # Initialize and connect to Neurosity Crown
-crown = NeurosityCrown(device_id="your_device_id", auth="your_auth")
-crown.connect()
+info = neurosity.get_info()
+print(info)
+
 
 
 def callback(data):
