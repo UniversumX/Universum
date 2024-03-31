@@ -5,11 +5,21 @@ import os
 from neurosity_sdk import NeurosityCrown  # This is hypothetical; replace with the actual import
 from influxdb_client import InfluxDBClient
 from influxdb_client import InfluxDBClient, Point, WriteOptions
+from influxdb_client import WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 import time
 import argparse
 import signal
 import sys
+import asyncio
+from datetime import datetime
+
+"""
+Ensure you have the necessary packages installed in your environment:
+
+influxdb-client for InfluxDB interaction.
+python-dotenv for environment variable management.
+"""
 
 # Assuming you have set up InfluxDB credentials as environment variables
 influxdb_url = os.getenv('INFLUXDB_URL')
@@ -25,9 +35,9 @@ args = parser.parse_args()
 # Use args.duration as the time to run the data collection
 collection_duration = args.duration
 
-NEUROSITY_EMAIL=your email here
-NEUROSITY_PASSWORD=your password here
-NEUROSITY_DEVICE_ID=your device id here
+NEUROSITY_EMAIL=#your email here
+NEUROSITY_PASSWORD=#your password here
+NEUROSITY_DEVICE_ID=#your device id here
 
 
 load_dotenv()
@@ -48,8 +58,9 @@ write_api = client.write_api(write_options=SYNCHRONOUS)
 
 
 # Initialize and connect to Neurosity Crown
-crown = NeurosityCrown(device_id="your_device_id", auth="your_auth")
-crown.connect()
+info = neurosity.get_info()
+print(info)
+
 
 
 def write_data_to_influx(label, data):
@@ -59,14 +70,32 @@ def write_data_to_influx(label, data):
     write_api.write(bucket=bucket, org=org, record=point)
 
 def handle_eeg_data(data):
-    # Example processing, adapt according to actual data format
-    eeg_data = {"value": sum(data['data'][0])/len(data['data'][0])}  # Simplified example
-    write_data_to_influx("EEG", eeg_data)
+    # Assuming 'data' contains EEG samples and 'info' contains metadata
+    timestamp = datetime.utcnow()
+    for sample_set in data['data']:
+        for channel_index, value in enumerate(sample_set):
+            channel_name = data['info']['channelNames'][channel_index]
+            point = (
+                Point("EEG")
+                .tag("device", os.getenv("NEUROSITY_DEVICE_ID"))
+                .tag("channel", channel_name)
+                .field("value", float(value))
+                .time(timestamp, WritePrecision.NS)
+            )
+            write_api.write(bucket=bucket, org=org, record=point)
 
 def handle_accelerometer_data(data):
-    # Example processing, adapt according to actual data format
-    accel_data = {"x": data['data']['x'], "y": data['data']['y'], "z": data['data']['z']}
-    write_data_to_influx("Accelerometer", accel_data)
+    # Directly uses 'data' assuming it contains 'x', 'y', 'z' acceleration values
+    timestamp = datetime.utcnow()
+    point = (
+        Point("Accelerometer")
+        .tag("device", os.getenv("NEUROSITY_DEVICE_ID"))
+        .field("x", float(data['x']))
+        .field("y", float(data['y']))
+        .field("z", float(data['z']))
+        .time(timestamp, WritePrecision.NS)
+    )
+    write_api.write(bucket=bucket, org=org, record=point)
 
 def signal_handler(sig, frame):
     print('Emergency stop detected. Cleaning up...')
@@ -75,30 +104,49 @@ def signal_handler(sig, frame):
     exit(0)
 
 
-def main(collection_duration):
-    unsubscribe_eeg = neurosity.brainwaves_raw(handle_eeg_data)
-    unsubscribe_accelerometer = neurosity.accelerometer(handle_accelerometer_data)
 
-    # Run for the specified duration
-    time.sleep(collection_duration)
+
+async def main(duration):
+    await neurosity.login({
+        "email": os.getenv("NEUROSITY_EMAIL"),
+        "password": os.getenv("NEUROSITY_PASSWORD"),
+    })
+    
+    # Subscribe to EEG and accelerometer data
+    unsubscribe_eeg = await neurosity.brainwaves_raw(handle_eeg_data)
+    unsubscribe_accel = await neurosity.accelerometer(handle_accelerometer_data)
+
+    # Wait for the specified duration
+    await asyncio.sleep(duration)
 
     # Cleanup
     unsubscribe_eeg()
-    unsubscribe_accelerometer()
-    client.close()
-    print("Data collection completed.")
-
-
-
+    unsubscribe_accel()
+    write_api.close()
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, signal_handler)
-
-    parser = argparse.ArgumentParser(description="Collect EEG and accelerometer data")
-    parser.add_argument("--duration", type=int, default=60, help="Duration to collect data for (in seconds)")
+    parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
+    parser.add_argument("--duration", type=int, default=60, help="Duration to collect data in seconds.")
     args = parser.parse_args()
 
+    signal.signal(signal.SIGINT, signal_handler)
+
+    asyncio.run(main(args.duration))
+
+    # might get rid of this
     neurosity.login({
         "email": os.getenv("NEUROSITY_EMAIL"),
         "password": os.getenv("NEUROSITY_PASSWORD")
     }).then(lambda _: main(args.duration))
+
+
+    """
+    Notes:
+Replace handle_eeg_data and handle_accelerometer_data with the correct logic for handling your data. The given examples are placeholders and need to be adapted to the actual data structure provided by the Neurosity SDK.
+The write_data_to_influx function is a simplified method to write data to InfluxDB. Ensure the data structure (data dictionary passed to it) matches what you intend to store.
+This script uses a blocking time.sleep for simplicity. For a more responsive or complex application, consider using asynchronous programming patterns or threading.
+Running this script directly from the CLI and providing the --duration argument lets you specify how long you want to collect data for.
+Pressing CTRL+C will trigger the emergency stop, immediately terminating the data collection and ensuring a clean exit.
+
+    
+    """
