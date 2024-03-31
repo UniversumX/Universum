@@ -19,6 +19,9 @@ import signal
 import sys
 import asyncio
 from datetime import datetime
+import csv
+from pathlib import Path
+
 
 
 
@@ -74,6 +77,18 @@ write_api = client.write_api(write_options=SYNCHRONOUS)
 info = neurosity.get_info()
 print(info)
 
+def write_data_to_csv(data_type, data):
+    filename = f"{data_type}_data.csv"
+    file_exists = Path(filename).exists()
+    
+    with open(filename, mode='a', newline='') as file:
+        fieldnames = ['timestamp', 'device_id', 'data_type', 'channel', 'value', 'x', 'y', 'z']
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+
+        if not file_exists:
+            writer.writeheader()
+        
+        writer.writerow(data)
 
 
 def write_data_to_influx(label, data):
@@ -95,7 +110,21 @@ def handle_eeg_data(data):
                 .field("value", float(value))
                 .time(timestamp, WritePrecision.NS)
             )
+            # Write to CSV
+            write_data_to_csv('EEG', {
+                'timestamp': timestamp,
+                'device_id': os.getenv("NEUROSITY_DEVICE_ID"),
+                'data_type': 'EEG',
+                'channel': channel_name,
+                'value': value,
+                'x': '',
+                'y': '',
+                'z': ''
+            })
+            
+            # write to influx
             write_api.write(bucket=bucket, org=org, record=point)
+            
 
 def handle_accelerometer_data(data):
     # Directly uses 'data' assuming it contains 'x', 'y', 'z' acceleration values
@@ -108,7 +137,21 @@ def handle_accelerometer_data(data):
         .field("z", float(data['z']))
         .time(timestamp, WritePrecision.NS)
     )
+    # Write to CSV
+    write_data_to_csv('Accelerometer', {
+        'timestamp': timestamp,
+        'device_id': os.getenv("NEUROSITY_DEVICE_ID"),
+        'data_type': 'Accelerometer',
+        'channel': '',
+        'value': '',
+        'x': data['x'],
+        'y': data['y'],
+        'z': data['z']
+    })
+
+    # write to influx
     write_api.write(bucket=bucket, org=org, record=point)
+    
 
 def signal_handler(sig, frame):
     print('Emergency stop detected. Cleaning up...')
