@@ -7,7 +7,39 @@ from influxdb_client import InfluxDBClient
 from influxdb_client import InfluxDBClient, Point, WriteOptions
 from influxdb_client import WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
+import os
+from neurosity_sdk import NeurosityCrown  # This is hypothetical; replace with the actual import
+from influxdb_client import InfluxDBClient
+from influxdb_client import InfluxDBClient, Point, WriteOptions
+from influxdb_client import WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
 import time
+import argparse
+import signal
+import sys
+import asyncio
+from datetime import datetime
+
+"""
+Ensure you have the necessary packages installed in your environment:
+
+influxdb-client for InfluxDB interaction.
+python-dotenv for environment variable management.
+"""
+
+# Assuming you have set up InfluxDB credentials as environment variables
+influxdb_url = os.getenv('INFLUXDB_URL')
+token = os.getenv('INFLUXDB_TOKEN')
+org = os.getenv('INFLUXDB_ORG')
+bucket = os.getenv('INFLUXDB_BUCKET')
+
+# Setting up argparse to accept a collection duration from the command line
+parser = argparse.ArgumentParser(description='EEG and Accelerometer Data Collection')
+parser.add_argument('--duration', type=int, help='Duration for data collection in seconds', default=60)
+args = parser.parse_args()
+
+# Use args.duration as the time to run the data collection
+collection_duration = args.duration
 import argparse
 import signal
 import sys
@@ -50,6 +82,11 @@ neurosity.login({
     "email": os.getenv("NEUROSITY_EMAIL"),
     "password": os.getenv("NEUROSITY_PASSWORD")
 })
+
+
+# Initialize InfluxDB client
+client = InfluxDBClient(url=influxdb_url, token=token, org=org)
+write_api = client.write_api(write_options=SYNCHRONOUS)
 
 
 # Initialize InfluxDB client
@@ -147,6 +184,15 @@ The write_data_to_influx function is a simplified method to write data to Influx
 This script uses a blocking time.sleep for simplicity. For a more responsive or complex application, consider using asynchronous programming patterns or threading.
 Running this script directly from the CLI and providing the --duration argument lets you specify how long you want to collect data for.
 Pressing CTRL+C will trigger the emergency stop, immediately terminating the data collection and ensuring a clean exit.
+    """
+    Notes:
+Replace handle_eeg_data and handle_accelerometer_data with the correct logic for handling your data. The given examples are placeholders and need to be adapted to the actual data structure provided by the Neurosity SDK.
+The write_data_to_influx function is a simplified method to write data to InfluxDB. Ensure the data structure (data dictionary passed to it) matches what you intend to store.
+This script uses a blocking time.sleep for simplicity. For a more responsive or complex application, consider using asynchronous programming patterns or threading.
+Running this script directly from the CLI and providing the --duration argument lets you specify how long you want to collect data for.
+Pressing CTRL+C will trigger the emergency stop, immediately terminating the data collection and ensuring a clean exit.
 
+    
+    """
     
     """
