@@ -1,9 +1,6 @@
 from neurosity import NeurositySDK
 from dotenv import load_dotenv
 import os
-from influxdb_client import InfluxDBClient, Point, WriteOptions
-from influxdb_client import WritePrecision
-from influxdb_client.client.write_api import SYNCHRONOUS
 import time
 import argparse
 import signal
@@ -12,6 +9,8 @@ import asyncio
 from datetime import datetime
 import csv
 from pathlib import Path
+from influx_data import *
+from local_storage import *
 
 
 
@@ -24,11 +23,6 @@ influxdb-client for InfluxDB interaction.
 python-dotenv for environment variable management.
 """
 
-# Assuming you have set up InfluxDB credentials as environment variables
-influxdb_url = os.getenv('INFLUXDB_URL')
-token = os.getenv('INFLUXDB_TOKEN')
-org = os.getenv('INFLUXDB_ORG')
-bucket = os.getenv('INFLUXDB_BUCKET')
 
 # Setting up argparse to accept a collection duration from the command line
 parser = argparse.ArgumentParser(description='EEG and Accelerometer Data Collection')
@@ -55,35 +49,9 @@ neurosity.login({
 })
 
 
-
-# Initialize InfluxDB client
-client = InfluxDBClient(url=influxdb_url, token=token, org=org)
-write_api = client.write_api(write_options=SYNCHRONOUS)
-
-
 # Initialize and connect to Neurosity Crown
 info = neurosity.get_info()
 print(info)
-
-def write_data_to_csv(data_type, data):
-    filename = f"{data_type}_data.csv"
-    file_exists = Path(filename).exists()
-    
-    with open(filename, mode='a', newline='') as file:
-        fieldnames = ['timestamp', 'device_id', 'data_type', 'channel', 'value', 'x', 'y', 'z']
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-
-        if not file_exists:
-            writer.writeheader()
-        
-        writer.writerow(data)
-
-
-def write_data_to_influx(label, data):
-    point = Point(label)
-    for key, value in data.items():
-        point = point.field(key, value)
-    write_api.write(bucket=bucket, org=org, record=point)
 
 def handle_eeg_data(data):
     # Assuming 'data' contains EEG samples and 'info' contains metadata
@@ -150,7 +118,7 @@ def signal_handler(sig, frame):
 
 
 
-async def main(duration):
+async def eeg(duration):
     await neurosity.login({
         "email": os.getenv("NEUROSITY_EMAIL"),
         "password": os.getenv("NEUROSITY_PASSWORD"),
@@ -167,21 +135,24 @@ async def main(duration):
     unsubscribe_eeg()
     unsubscribe_accel()
     write_api.close()
+    
+def collect(duration):
+    asyncio.run(eeg(duration))
 
-if __name__ == "__main__":
+if __name__ == "__collect__":
     parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
     parser.add_argument("--duration", type=int, default=60, help="Duration to collect data in seconds.")
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    asyncio.run(main(args.duration))
+    asyncio.run(collect(args.duration))
 
     # might get rid of this
     neurosity.login({
         "email": os.getenv("NEUROSITY_EMAIL"),
         "password": os.getenv("NEUROSITY_PASSWORD")
-    }).then(lambda _: main(args.duration))
+    }).then(lambda _: collect(args.duration))
 
 
     """
