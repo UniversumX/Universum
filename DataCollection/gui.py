@@ -6,11 +6,11 @@ class TimerApp:
         self.root = root
         self.root.title("Timer App")
         
-        self.default_time = 30
+        self.default_time = 60
         self.time_remaining = self.default_time
         self.is_running = False
         
-        self.timer_label = tk.Label(self.root, text="Time Remaining: 30")
+        self.timer_label = tk.Label(self.root, text="Time Remaining: 60")
         self.timer_label.pack()
         
         self.start_button = tk.Button(self.root, text="Start", command=self.start_timer)
@@ -21,6 +21,24 @@ class TimerApp:
         
         self.reset_button = tk.Button(self.root, text="Reset", command=self.reset_timer)
         self.reset_button.pack()
+        
+        self.default_time_label = tk.Label(self.root, text="Default Block Time:")
+        self.default_time_label.pack()
+
+        self.default_time_entry = tk.Entry(self.root)
+        self.default_time_entry.pack()
+
+        self.submit_button = tk.Button(self.root, text="Submit", command=self.set_default_time)
+        self.submit_button.pack()
+        
+    def set_default_time(self):
+        new_time = int(self.default_time_entry.get())
+        self.default_time = new_time
+        self.time_remaining = new_time
+        self.timer_label.config(text=f"Time Remaining: {self.time_remaining}")
+        self.default_time_entry.delete(0, tk.END)
+
+
         
     def start_timer(self):
         if not self.is_running:
