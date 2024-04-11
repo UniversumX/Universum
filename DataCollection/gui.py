@@ -1,5 +1,6 @@
 import tkinter as tk
 import time
+from data_collection import *
 
 class TimerApp:
     def __init__(self, root):
@@ -41,6 +42,7 @@ class TimerApp:
 
         
     def start_timer(self):
+        collect(self.default_time)
         if not self.is_running:
             self.is_running = True
             self.root.after(1000, self.update_timer)
