@@ -1,0 +1,2 @@
+timestamp,device_id,data_type,channel,value,x,y,z
+2024-04-16 22:54:54.741318,83c8c23779fed513bf54b2caa651454b,Accelerometer,,,0.08,-0.44,-0.71
