@@ -54,9 +54,11 @@ neurosity.login({
     "password": neurosity_password
 })
 
-# Initialize and connect to Neurosity Crown
-info = neurosity.get_info()
-print(info)
+# Show neurosit info on demand
+def info_neurosity():
+    info = neurosity.get_info()
+    print(info)
+
 def handle_eeg_data(data):
     timestamp = datetime.utcnow()
     channel_names = data['info']['channelNames']
@@ -72,7 +74,7 @@ def handle_eeg_data(data):
             for value in values:
                 # Write to CSV
                 write_data_to_csv('EEG', {
-                    'timestamp': timestamp,
+                    'timestamp': NeurositySDK.get_server_timestamp(neurosity),
                     'device_id': neurosity_device_id,
                     'data_type': 'EEG',
                     'channel': channel_name,
@@ -184,7 +186,7 @@ def handle_accelerometer_data(data):
     # )
     # Write to CSV
     write_data_to_csv('Accelerometer', {
-        'timestamp': timestamp,
+        'timestamp': NeurositySDK.get_server_timestamp(neurosity),
         'device_id': neurosity_device_id,
         'data_type': 'Accelerometer',
         'channel': '',
@@ -217,6 +219,7 @@ async def eeg(duration):
     unsubscribe_eeg = neurosity.brainwaves_raw(handle_eeg_data)
     unsubscribe_accel = neurosity.accelerometer(handle_accelerometer_data)
 
+    ### FIX: This does not work as expected. ###
     # Wait for the specified duration
     await asyncio.sleep(duration)
 
@@ -228,7 +231,7 @@ async def eeg(duration):
 def collect(duration):
     asyncio.run(eeg(duration))
 
-if True:
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
     parser.add_argument("--duration", type=int, default=60, help="Duration to collect data in seconds.")
     args = parser.parse_args()
