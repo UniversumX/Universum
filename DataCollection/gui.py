@@ -16,7 +16,10 @@ class TimerApp:
         
         self.start_button = tk.Button(self.root, text="Start", command=self.start_timer)
         self.start_button.pack()
-        
+
+        self.info_button = tk.Button(self.root, text="Info", command=info_neurosity)
+        self.info_button.pack()       
+
         self.stop_button = tk.Button(self.root, text="Stop", command=self.stop_timer)
         self.stop_button.pack()
         
