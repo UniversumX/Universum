@@ -12,7 +12,7 @@ class TimerApp:
         self.time_remaining = self.default_time
         self.is_running = False
 
-        self.timer_label = tk.Label(self.root, text="Time Remaining: 60")
+        self.timer_label = tk.Label(self.root, text=f"Time Remaining: {self.default_time}")
         self.timer_label.pack()
         
         self.start_button = tk.Button(self.root, text="Start", command=self.start_timer)
@@ -39,7 +39,7 @@ class TimerApp:
         if self.time_remaining == 0:
             self.time_remaining = self.default_time
         if not self.is_running:
-            asyncio.run(collect(self.default_time))
+            collect()
             self.is_running = True
             self.start_button.config(state = 'disabled')
             self.info_button.config(state = 'disabled')
@@ -80,6 +80,8 @@ class TimerApp:
             self.timer_label.config(text=f"Time Remaining: {self.time_remaining}")
             self.root.after(1000, self.update_timer)
             if self.time_remaining == 0:
+                neurosity_stop()
+                trial_progress() 
                 self.is_running = False
                 self.start_button.config(state = 'normal')
                 self.info_button.config(state = 'normal')

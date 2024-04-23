@@ -11,7 +11,7 @@ import csv
 from pathlib import Path
 # from Modules import influx_data
 from modules import local_storage, subject
-
+import threading
 
 
 
@@ -155,40 +155,28 @@ def signal_handler(sig, frame):
     exit(0)
 
 def neurosity_stop():
-    print('Emergency stop detected. Cleaning up...')
     neurosity.remove_all_subscriptions()
-    print('Cleanup done.')
 
 
-async def eeg(duration):
+def eeg():
     # Subscribe to EEG and accelerometer data
-    unsubscribe_eeg = neurosity.brainwaves_raw(handle_eeg_data)
-    unsubscribe_accel = neurosity.accelerometer(handle_accelerometer_data)
+    neurosity.brainwaves_raw(handle_eeg_data)
+    neurosity.accelerometer(handle_accelerometer_data)
 
     ### FIX: This does not work as expected. ###
     # Wait for the specified duration
-    await asyncio.sleep(duration)
+    # await asyncio.sleep(duration)
 
-
-    # Cleanup
-    unsubscribe_eeg()
-    unsubscribe_accel()
     # write_api.close()
+
+def trial_progress():
+    datawriter.set_trial(datawriter.get_trial() + 1)
 
 def discard_last_trial():
     datawriter.discard_last_trial()
 
-    ### TODO: Implement a way to cancel asyncio tasks ###
-def shutdown(loop):
-    print('received stop signal, cancelling tasks...')
-    for task in asyncio.all_tasks():
-        task.cancel()
-    print('bye, exiting in a minute...')
-
-
-async def collect(duration):
-    callback = eeg(duration)
-    datawriter.set_trial(datawriter.get_trial() + 1)
+def collect():
+    eeg()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
@@ -203,7 +191,6 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    callback = collect(args.duration)
 
     """
     Notes:
