@@ -9,9 +9,8 @@ import asyncio
 from datetime import datetime
 import csv
 from pathlib import Path
-# from influx_data import *
-from local_storage import *
-
+# from Modules import influx_data
+from modules import local_storage, subject
 
 
 
@@ -23,15 +22,6 @@ Ensure you have the necessary packages installed in your environment:
 influxdb-client for InfluxDB interaction.
 python-dotenv for environment variable management.
 """
-
-
-# Setting up argparse to accept a collection duration from the command line
-parser = argparse.ArgumentParser(description='EEG and Accelerometer Data Collection')
-parser.add_argument('--duration', type=int, help='Duration for data collection in seconds', default=60)
-args = parser.parse_args()
-
-# Use args.duration as the time to run the data collection
-collection_duration = args.duration
 
 
 # Load environment variables from .env file
@@ -54,36 +44,44 @@ neurosity.login({
     "password": neurosity_password
 })
 
+sub = subject.Subject()
+datawriter = local_storage.DataWriter(sub) 
+
+def experiment_setup(subject_id = '0000', visit = 0, age = 0, trial = 0):
+    # Initialize the subject
+    sub.set_subject_id(subject_id)
+    sub.set_visit(visit)
+    sub.set_age(age)
+    # Initialize the data writer
+    datawriter.set_subject(sub)
+    # Initialize the trial number
+    datawriter.set_trial(trial)
+
+
 # Show neurosit info on demand
 def info_neurosity():
     info = neurosity.get_info()
     print(info)
-
+    
 def handle_eeg_data(data):
-    timestamp = datetime.utcnow()
+    print("data", data)
+    # start = time.time()
+    timestamp = datetime.fromtimestamp(data['info']['startTime'] / 1000.0).strftime('%F %T.%f')[:-3]
     channel_names = data['info']['channelNames']
-    pairs_per_channel = len(data['data'][0]) // len(channel_names)
+    label = data['label']
+    data_by_channel = data['data']
+    sample_number = len(data_by_channel[0])
 
+    for i in range(sample_number):
+        row = dict()
+        row['timestamp'] = timestamp
+        for j in range(len(channel_names)):
+            row[channel_names[j]] = data_by_channel[j][i]
+    # Handling each value in values, you may need to adjust based on your actual requirements:
+        datawriter.write_data_to_csv(data_type = 'EEG', data = row, label = label)
 
-    for sample_set in data['data']:
-        for i in range(len(channel_names)):
-            values = sample_set[i * pairs_per_channel:(i + 1) * pairs_per_channel]
-            channel_name = channel_names[i]
-
-            # Handling each value in values, you may need to adjust based on your actual requirements:
-            for value in values:
-                # Write to CSV
-                write_data_to_csv('EEG', {
-                    'timestamp': NeurositySDK.get_server_timestamp(neurosity),
-                    'device_id': neurosity_device_id,
-                    'data_type': 'EEG',
-                    'channel': channel_name,
-                    'value': value,  # Here we use each individual value
-                    'x': '',
-                    'y': '',
-                    'z': ''
-                })
-                print(f"{timestamp}: Channel {channel_name} - Value {value}")
+    # end = time.time()
+    # print(end - start)
 
 # def handle_eeg_data(data):
 #     timestamp = datetime.utcnow()
@@ -114,68 +112,14 @@ def handle_eeg_data(data):
 #             })
 #             print(f"{timestamp}: Channel {channel_name} - Values {values}")
 
-# def handle_eeg_data(data):
-#     print(f"Received data sample size: {len(data['data'][0])} values")
-#     timestamp = datetime.utcnow()
-#     channel_names = data['info']['channelNames']
-#     for sample_set in data['data']:
-#         for channel_index, value in enumerate(sample_set):
-#             if channel_index < len(channel_names):  # Ensure index is valid
-#                 channel_name = channel_names[channel_index]
-#                 # point = (
-#                 #     Point("EEG")
-#                 #     .tag("device", os.getenv("NEUROSITY_DEVICE_ID"))
-#                 #     .tag("channel", channel_name)
-#                 #     .field("value", float(value))
-#                 #     .time(timestamp, WritePrecision.NS)
-#                 # )
-#                 # Write to CSV
-#                 write_data_to_csv('EEG', {
-#                     'timestamp': timestamp,
-#                     'device_id': NEUROSITY_DEVICE_ID,
-#                     'data_type': 'EEG',
-#                     'channel': channel_name,
-#                     'value': value,
-#                     'x': '',
-#                     'y': '',
-#                     'z': ''
-#                 })
-#             else:
-#                 print(f"Skipping index {channel_index}, out of range for channel names.")
-
-# def handle_eeg_data(data):
-#     # Assuming 'data' contains EEG samples and 'info' contains metadata
-#     timestamp = datetime.utcnow()
-#     for sample_set in data['data']:
-#         for channel_index, value in enumerate(sample_set):
-#             print(len(data), type(data))
-#             channel_name = data['info']['channelNames'][channel_index]
-#             # point = (
-#             #     Point("EEG")
-#             #     .tag("device", os.getenv("NEUROSITY_DEVICE_ID"))
-#             #     .tag("channel", channel_name)
-#             #     .field("value", float(value))
-#             #     .time(timestamp, WritePrecision.NS)
-#             # )
-#             # Write to CSV
-#             write_data_to_csv('EEG', {
-#                 'timestamp': timestamp,
-#                 'device_id': NEUROSITY_DEVICE_ID,
-#                 'data_type': 'EEG',
-#                 'channel': channel_name,
-#                 'value': value,
-#                 'x': '',
-#                 'y': '',
-#                 'z': ''
-#             })
-
 #             # write to influx
 #            #  write_api.write(bucket=bucket, org=org, record=point)
             
 
 def handle_accelerometer_data(data):
     # Directly uses 'data' assuming it contains 'x', 'y', 'z' acceleration values
-    timestamp = datetime.utcnow()
+    # print("data", data)
+    timestamp = datetime.fromtimestamp(data['timestamp'] / 1000.0).strftime('%F %T.%f')[:-3]
     # point = (
     #     Point("Accelerometer")
     #     .tag("device", os.getenv("NEUROSITY_DEVICE_ID"))
@@ -185,15 +129,16 @@ def handle_accelerometer_data(data):
     #     .time(timestamp, WritePrecision.NS)
     # )
     # Write to CSV
-    write_data_to_csv('Accelerometer', {
-        'timestamp': NeurositySDK.get_server_timestamp(neurosity),
+    datawriter.write_data_to_csv('Accelerometer', {
+        'timestamp': timestamp,
         'device_id': neurosity_device_id,
-        'data_type': 'Accelerometer',
-        'channel': '',
-        'value': '',
         'x': data['x'],
         'y': data['y'],
-        'z': data['z']
+        'z': data['z'],
+        'pitch': data['pitch'],
+        'roll': data['roll'],
+        'acceleration': data['acceleration'],
+        'inclination': data['inclination'], 
     })
 
     # write to influx
@@ -203,18 +148,17 @@ def handle_accelerometer_data(data):
 def signal_handler(sig, frame):
     print('Emergency stop detected. Cleaning up...')
     # client.close()
+    neurosity_stop()
     print('Cleanup done. Exiting.')
     exit(0)
 
-
+def neurosity_stop():
+    print('Emergency stop detected. Cleaning up...')
+    neurosity.remove_all_subscriptions()
+    print('Cleanup done.')
 
 
 async def eeg(duration):
-    # await neurosity.login({
-    #     "email": os.getenv("NEUROSITY_EMAIL"),
-    #     "password": os.getenv("NEUROSITY_PASSWORD"),
-    # })
-    
     # Subscribe to EEG and accelerometer data
     unsubscribe_eeg = neurosity.brainwaves_raw(handle_eeg_data)
     unsubscribe_accel = neurosity.accelerometer(handle_accelerometer_data)
@@ -223,23 +167,41 @@ async def eeg(duration):
     # Wait for the specified duration
     await asyncio.sleep(duration)
 
+
     # Cleanup
     unsubscribe_eeg()
     unsubscribe_accel()
     # write_api.close()
-    
-def collect(duration):
-    asyncio.run(eeg(duration))
+
+def discard_last_trial():
+    datawriter.discard_last_trial()
+
+    ### TODO: Implement a way to cancel asyncio tasks ###
+def shutdown(loop):
+    print('received stop signal, cancelling tasks...')
+    for task in asyncio.all_tasks():
+        task.cancel()
+    print('bye, exiting in a minute...')
+
+
+async def collect(duration):
+    callback = eeg(duration)
+    datawriter.set_trial(datawriter.get_trial() + 1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
     parser.add_argument("--duration", type=int, default=60, help="Duration to collect data in seconds.")
+    parser.add_argument("--subject_id", type=str, default="0000", help="Subject ID")
+    parser.add_argument("--visit", type=int, default=0, help="Visit number")
+    parser.add_argument("--trial", type=int, default=0, help="Trial number")
+    parser.add_argument("--age", type=int, default=0, help="Age of the subject")
     args = parser.parse_args()
+
+    experiment_setup(args.subject_id, args.visit, args.age, args.trial)
 
     signal.signal(signal.SIGINT, signal_handler)
 
     asyncio.run(collect(args.duration))
-
 
     """
     Notes:
