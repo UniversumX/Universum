@@ -56,6 +56,8 @@ def experiment_setup(subject_id = '0000', visit = 0, age = 0, trial = 0):
     datawriter.set_subject(sub)
     # Initialize the trial number
     datawriter.set_trial(trial)
+    # Record subject info
+    datawriter.write_subject_info()
 
 
 # Show neurosit info on demand

@@ -67,16 +67,21 @@ class DataWriter:
                 'visit': self._subject.get_visit(),
                 'age': self._subject.get_age()
             }
+            data_list = [data['subject_id'], data['visit'], data['age']]
             dir = "data/subject_info.csv"
             file_exists = Path(dir).exists()
             with open(dir, mode='a', newline='') as file:
                 fieldnames = ['subject_id', 'visit', 'age'] 
                 writer = csv.DictWriter(file, fieldnames=fieldnames)
-                
                 if not file_exists:
                     writer.writeheader()    
-                writer.writerow(data)
-    
+                csv_reader = csv.reader(file, delimiter=',')
+                # convert string to list
+                list_of_csv = list(csv_reader)
+                if data_list not in list_of_csv:
+                    writer.writerow(data)
+                
+
     def discard_last_trial(self):
             filename = f"{self._subdirectory}/eeg_data.csv"
             if os.path.exists(filename):
