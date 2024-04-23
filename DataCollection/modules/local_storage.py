@@ -21,6 +21,7 @@ class DataWriter:
     
     def set_trial(self, trial):
         self._trial = trial
+        self._subdirectory = f"data/{self._subject.get_subject_id()}/{self._subject.get_visit()}/{self._trial}/"
 
     def get_trial(self):
         return self._trial
@@ -70,7 +71,7 @@ class DataWriter:
             data_list = [data['subject_id'], data['visit'], data['age']]
             dir = "data/subject_info.csv"
             file_exists = Path(dir).exists()
-            with open(dir, mode='a', newline='') as file:
+            with open(dir, mode='a+', newline='') as file:
                 fieldnames = ['subject_id', 'visit', 'age'] 
                 writer = csv.DictWriter(file, fieldnames=fieldnames)
                 if not file_exists:
@@ -83,10 +84,7 @@ class DataWriter:
                 
 
     def discard_last_trial(self):
-            filename = f"{self._subdirectory}/eeg_data.csv"
-            if os.path.exists(filename):
-                os.remove(filename)
-            filename = f"{self._subdirectory}/accelerometer_data.csv"
-            if os.path.exists(filename):
-                os.remove(filename)
+            path = f"{self._subdirectory}"
+            if os.path.exists(path):
+                os.remove(path)
 
