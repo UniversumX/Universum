@@ -152,7 +152,7 @@ class InfoApp:
         if self.visit == "":
             self.visit = '1'
         if self.trial == "":
-            self.trial = '1'
+            self.trial = '0'
         if self.id.isdigit() and self.visit.isdigit() and self.trial.isdigit() and self.default_time.isdigit():
             experiment_setup(self.id, int(self.visit), int(self.trial))
             messagebox.showinfo("Info Entry Successful", "Welcome to the Experiment!\nClick OK to continue")
