@@ -10,7 +10,7 @@ from datetime import datetime
 import csv
 from pathlib import Path
 # from Modules import influx_data
-from modules import local_storage, subject, neurosity_collector
+from modules import local_storage, subject
 import threading
 
 
@@ -46,7 +46,6 @@ neurosity.login({
 
 sub = subject.Subject()
 datawriter = local_storage.DataWriter(sub)
-neurosity_collector = neurosity_collector.NeurosityCollector()
 
 def experiment_setup(subject_id = '0000', visit = 1, trial = 1):
     # Initialize the subject
