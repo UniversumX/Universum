@@ -9,9 +9,9 @@ import time
 from datetime import datetime
 
 class DataWriter:
-    _subject = subject.Subject('0000', 0)
-    _subdirectory = f"data/{_subject.get_subject_id()}/{_subject.get_visit()}/0/"
+    _subject = subject.Subject('0000', 1)
     _trial = 0
+    _subdirectory = f"data/{_subject.get_subject_id()}/{_subject.get_visit()}/{_trial}/"
 
     def __init__(self, subject, trial = 0):
         self._subject = subject
@@ -29,10 +29,11 @@ class DataWriter:
     def get_trial(self):
         return self._trial
 
+    def check_directory(self):
+        if not os.path.exists(self._subdirectory):
+            os.makedirs(self._subdirectory)
 
     def write_data_to_csv(self, data_type: str, data: dict, label = None): 
-            if not os.path.exists(self._subdirectory):
-                os.makedirs(self._subdirectory) 
             write_data_type = f"write_{data_type.lower()}_data"
             filename = f"{self._subdirectory}{data_type.lower()}_data.csv"
             if label is not None:
