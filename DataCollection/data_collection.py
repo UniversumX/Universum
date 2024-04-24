@@ -10,7 +10,7 @@ from datetime import datetime
 import csv
 from pathlib import Path
 # from Modules import influx_data
-from modules import local_storage, subject
+from modules import local_storage, subject, neurosity_collector
 import threading
 
 
@@ -45,13 +45,13 @@ neurosity.login({
 })
 
 sub = subject.Subject()
-datawriter = local_storage.DataWriter(sub) 
+datawriter = local_storage.DataWriter(sub)
+neurosity_collector = neurosity_collector.NeurosityCollector()
 
-def experiment_setup(subject_id = '0000', visit = 0, age = 0, trial = 0):
+def experiment_setup(subject_id = '0000', visit = 1, trial = 1):
     # Initialize the subject
     sub.set_subject_id(subject_id)
     sub.set_visit(visit)
-    sub.set_age(age)
     # Initialize the data writer
     datawriter.set_subject(sub)
     # Initialize the trial number
@@ -66,7 +66,7 @@ def info_neurosity():
     print(info)
     
 def handle_eeg_data(data):
-    print("data", data)
+    # print("data", data)
     # start = time.time()
     timestamp = datetime.fromtimestamp(data['info']['startTime'] / 1000.0).strftime('%F %T.%f')[:-3]
     channel_names = data['info']['channelNames']
@@ -120,7 +120,7 @@ def handle_eeg_data(data):
 
 def handle_accelerometer_data(data):
     # Directly uses 'data' assuming it contains 'x', 'y', 'z' acceleration values
-    # print("data", data)
+    print("data", data)
     timestamp = datetime.fromtimestamp(data['timestamp'] / 1000.0).strftime('%F %T.%f')[:-3]
     # point = (
     #     Point("Accelerometer")
@@ -150,23 +150,17 @@ def handle_accelerometer_data(data):
 def signal_handler(sig, frame):
     print('Emergency stop detected. Cleaning up...')
     # client.close()
-    neurosity_stop()
     print('Cleanup done. Exiting.')
     exit(0)
 
-def neurosity_stop():
-    neurosity.remove_all_subscriptions()
-
-
 def eeg():
     # Subscribe to EEG and accelerometer data
-    neurosity.brainwaves_raw(handle_eeg_data)
-    neurosity.accelerometer(handle_accelerometer_data)
-
-    ### FIX: This does not work as expected. ###
-    # Wait for the specified duration
-    # await asyncio.sleep(duration)
-
+    unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
+    unsubscribe_accelerometer = neurosity.accelerometer(handle_accelerometer_data)
+    time.sleep(60)
+    # Unsubscribe from the data
+    unsubscribe_brainwaves()
+    unsubscribe_accelerometer()
     # write_api.close()
 
 def trial_progress():
@@ -178,16 +172,16 @@ def discard_last_trial():
 def collect():
     eeg()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
     parser.add_argument("--duration", type=int, default=60, help="Duration to collect data in seconds.")
     parser.add_argument("--subject_id", type=str, default="0000", help="Subject ID")
     parser.add_argument("--visit", type=int, default=0, help="Visit number")
     parser.add_argument("--trial", type=int, default=0, help="Trial number")
-    parser.add_argument("--age", type=int, default=0, help="Age of the subject")
     args = parser.parse_args()
 
-    experiment_setup(args.subject_id, args.visit, args.age, args.trial)
+    experiment_setup(args.subject_id, args.visit,args.trial)
 
     signal.signal(signal.SIGINT, signal_handler)
 
