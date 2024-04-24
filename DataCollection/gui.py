@@ -2,7 +2,6 @@ import tkinter as tk
 import time
 from data_collection import *
 from tkinter import messagebox
-from modules import signal_visualizer
 
 class TimerApp:
     def __init__(self, root, default_time=60):
