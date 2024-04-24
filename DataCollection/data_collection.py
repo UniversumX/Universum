@@ -153,6 +153,7 @@ def signal_handler(sig, frame):
     exit(0)
 
 def eeg():
+    datawriter.check_directory()
     # Subscribe to EEG and accelerometer data
     unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
     unsubscribe_accelerometer = neurosity.accelerometer(handle_accelerometer_data)

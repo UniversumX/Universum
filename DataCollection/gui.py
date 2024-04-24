@@ -36,6 +36,7 @@ class TimerApp:
         self.discard_button.pack()
        
     def collect(self):
+        datawriter.check_directory()
         self.unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
         self.unsubscribe_accelerometer = neurosity.accelerometer(handle_accelerometer_data)
 
@@ -46,6 +47,7 @@ class TimerApp:
     def start_timer(self):
         if self.time_remaining == 0:
             self.time_remaining = self.default_time
+            self.timer_label.config(text=f"Time Remaining: {self.default_time}")
         if not self.is_running:  
             self.collect()
             self.is_running = True
