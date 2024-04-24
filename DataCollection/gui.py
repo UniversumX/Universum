@@ -2,6 +2,7 @@ import tkinter as tk
 import time
 from data_collection import *
 from tkinter import messagebox
+from modules import signal_visualizer
 
 class TimerApp:
     def __init__(self, root, default_time=60):
@@ -34,12 +35,20 @@ class TimerApp:
         self.discard_button = tk.Button(self.root, text="Discard Last Trial", command=self.discard_last_trial)
         self.discard_button.config(state = 'disabled')
         self.discard_button.pack()
-        
+       
+    def collect(self):
+        self.unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
+        self.unsubscribe_accelerometer = neurosity.accelerometer(handle_accelerometer_data)
+
+    def stop(self):
+        self.unsubscribe_brainwaves()
+        self.unsubscribe_accelerometer()
+
     def start_timer(self):
         if self.time_remaining == 0:
             self.time_remaining = self.default_time
-        if not self.is_running:
-            collect()
+        if not self.is_running:  
+            self.collect()
             self.is_running = True
             self.start_button.config(state = 'disabled')
             self.info_button.config(state = 'disabled')
@@ -49,8 +58,7 @@ class TimerApp:
             self.root.after(1000, self.update_timer)
             
     def stop_timer(self):
-        ### TODO: Implement a way to stop the asyncio task ###
-        neurosity_stop()
+        self.stop()
         self.is_running = False
         self.start_button.config(state = 'normal')
         self.info_button.config(state = 'normal')
@@ -80,7 +88,7 @@ class TimerApp:
             self.timer_label.config(text=f"Time Remaining: {self.time_remaining}")
             self.root.after(1000, self.update_timer)
             if self.time_remaining == 0:
-                neurosity_stop()
+                self.stop()
                 trial_progress() 
                 self.is_running = False
                 self.start_button.config(state = 'normal')
@@ -108,12 +116,6 @@ class InfoApp:
         self.visit_entry = tk.Entry(self.root)  # Show asterisks for password
         self.visit_entry.pack()
 
-        self.age_label = tk.Label(self.root, text="Age:")
-        self.age_label.pack()
-
-        self.age_entry = tk.Entry(self.root)  # Show asterisks for password
-        self.age_entry.pack()
-
         self.trial_label = tk.Label(self.root, text="Trial Number:")
         self.trial_label.pack()
 
@@ -138,7 +140,6 @@ class InfoApp:
     def validate_submit(self):
         self.id = self.id_entry.get()
         self.visit = self.visit_entry.get()
-        self.age = self.age_entry.get()
         self.trial = self.trial_entry.get()
         self.default_time = self.default_time_entry.get()
 
@@ -148,13 +149,11 @@ class InfoApp:
         if self.id == "":
             self.id = '0000'
         if self.visit == "":
-            self.visit = '0'
-        if self.age == "":
-            self.age = '0'
+            self.visit = '1'
         if self.trial == "":
-            self.trial = '0'
-        if self.id.isdigit() and self.visit.isdigit() and self.age.isdigit() and self.trial.isdigit() and self.default_time.isdigit():
-            experiment_setup(self.id, int(self.visit), int(self.age), int(self.trial))
+            self.trial = '1'
+        if self.id.isdigit() and self.visit.isdigit() and self.trial.isdigit() and self.default_time.isdigit():
+            experiment_setup(self.id, int(self.visit), int(self.trial))
             messagebox.showinfo("Info Entry Successful", "Welcome to the Experiment!\nClick OK to continue")
             self.new_window()
         else:

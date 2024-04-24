@@ -5,6 +5,8 @@ import os.path
 from modules import subject
 import shutil
 import pandas as pd
+import time
+from datetime import datetime
 
 class DataWriter:
     _subject = subject.Subject('0000', 0)
@@ -64,14 +66,14 @@ class DataWriter:
 
     def write_subject_info(self):
             data = {
+                'time': datetime.fromtimestamp(time.time()).strftime('%F %T.%f')[:-3],
                 'subject_id': self._subject.get_subject_id(),
                 'visit': self._subject.get_visit(),
-                'age': self._subject.get_age()
             }
             dir = "data/subject_info.csv"
             file_exists = Path(dir).exists()
             file = open(dir, mode='a', newline='')
-            fieldnames = ['subject_id', 'visit', 'age']
+            fieldnames = ['time','subject_id', 'visit']
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
@@ -90,4 +92,5 @@ class DataWriter:
             path = f"{self._subdirectory}"
             if os.path.exists(path):
                 shutil.rmtree(path)
+
 
