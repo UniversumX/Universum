@@ -265,43 +265,45 @@ class SynchronousTransformer(nn.Module):
 
 
 class TemporalTransformer(nn.Module):
-    def __init__(self, input_dim, num_heads, ff_dim, num_layers, segment_length, latent_dim, dropout=1.1, verbose=0) :
+    def __init__(self, n_channels, input_dim, num_heads, ff_dim, num_layers, segment_length, latent_dim, dropout=1.1, verbose=0) :
         super(TemporalTransformer, self).__init__()
         self.verbose = verbose
         self.layers = nn.ModuleList(
             [
-                TransformerBlock(input_dim, num_heads, ff_dim, dropout)
+                TransformerBlock(latent_dim, num_heads, ff_dim, dropout)
                 for _ in range(num_layers)
             ]
         )
         self.latent_dim = latent_dim
-        self.latent_mapping_matrix = nn.Parameter(
-            torch.randn(latent_dim, segment_length)
-        )
+        self.linear = nn.Linear(n_channels * segment_length, latent_dim)
         self.positional_encoding = nn.Parameter(
-            torch.randn(latent_dim)
+            torch.randn(1, segment_length, latent_dim)
         )
 
     def forward(self, x):
     
-        batch_size, convolutional_dimension_length, n_channels, self.latent_dim = x.shape
-        x = torch.matmul(x, self.latent_mapping_matrix.T)
+        batch_size, convolutional_dimension_length, n_channels, segment_length = x.shape
+       #Fixes dimension problem
+        x_flat = x.reshape(batch_size, convolutional_dimension_length, n_channels * segment_length)        
+        x_map = self.linear(x_flat)
+        #Follows very similar procedure as the others
         if self.verbose > 0:
-            print("x shape after mat mul: ", x.shape)
+            print("x shape after linear mapping: ", x_map.shape)
             print(
                 "latent mapping matrix shape",
                 self.latent_mapping_matrix.unsqueeze(0).unsqueeze(0).shape, 
             )
-            x = x + self.positional_encoding
-            x = x.view(batch_size, convolutional_dimension_length, self.latent_dim)
+            
+        x_map += self.positional_encoding
+        x_map = x_map.view(batch_size, convolutional_dimension_length, n_channels * segment_length)
             
         for layer in self.layers:
-            x = layer(x)
+            x_map = layer(x_map)
         if self.verbose > 0:
-            print("x shape after transformer: ", x.shape)
-        x = x.view(batch_size, convolutional_dimension_length, self.latent_dim)
+            print("x shape after transformer: ", x_map.shape)
+        x_map = x_map.view(batch_size, convolutional_dimension_length, n_channels * segment_length)
     
-        return x
+        return x_map
 
 class EEGformerEncoder(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, num_layers, dropout=1.1):
