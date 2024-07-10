@@ -23,6 +23,7 @@ class TestingModel1(nn.Module):
     def __init__(self, config, output_size):
         super(TestingModel1, self).__init__()
         self.config = config
+
         self.cnn1d = CNN1D(
             config["sequence_length"],
             config["convolution_dimension_length"],
@@ -58,6 +59,7 @@ class TestingModel1(nn.Module):
             config["num_layers"],
             config["sequence_length"] - 6,
             config["latent_dim"],
+            config["n_channels"],
             config["dropout"],
             config["verbose"],
         )
@@ -161,7 +163,7 @@ def get_basic_ass_regional_transformer():
         "num_heads": 4,
         "ff_dim": 16,
         "num_layers": 2,
-        "latent_dim": 4,
+        "latent_dim": 64,
         "verbose": 0,
         "output_size": 1,
     }
@@ -261,7 +263,7 @@ def test_model_on_mnist():
         "num_heads": 4,
         "ff_dim": 16,
         "num_layers": 2,
-        "latent_dim": 4,
+        "latent_dim": 128,
         "verbose": 0,
         "output_size": 10,
     }
