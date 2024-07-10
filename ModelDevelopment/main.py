@@ -1,4 +1,4 @@
-from model import EEGModel, CNN1D, RegionalTransformer
+from model import EEGModel, CNN1D, RegionalTransformer, TemporalTransformer, SynchronousTransformer
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -41,7 +41,26 @@ class TestingModel1(nn.Module):
             config["dropout"],
             config["verbose"],
         )
-
+        self.synchronous_transformer = SynchronousTransformer(
+            config["input_dim"],
+            config["num_heads"],
+            config["ff_dim"],
+            config["num_layers"],
+            config["sequence_length"] - 6,
+            config["latent_dim"],
+            config["dropout"],
+            config["verbose"],
+        )
+        self.temporal_transformer = TemporalTransformer(
+            config["input_dim"],
+            config["num_heads"],
+            config["ff_dim"],
+            config["num_layers"],
+            config["sequence_length"] - 6,
+            config["latent_dim"],
+            config["dropout"],
+            config["verbose"],
+        )
         self.feed_forward = torch.nn.Linear(
             config["convolution_dimension_length"]
             * config["n_channels"]
@@ -53,10 +72,12 @@ class TestingModel1(nn.Module):
         bath_size, _, _ = x.shape
         x = self.cnn1d(x)
         x = self.regional_transformer(x)
+        x = self.synchronous_transformer(x)
+        x = self.temporal_transformer(x)
         x = x.view(bath_size, -1)
         x = self.feed_forward(x)
         return x
-
+        #Running into problems here, assertion error with embed_dim and num_heads
     def __call__(self, x):
         return self.forward(x)
 
