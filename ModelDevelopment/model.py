@@ -100,6 +100,9 @@ Output Dimension: The output of the CNN2D will now be in the shape (batch_size, 
 class TransformerBlock(nn.Module):
     def __init__(self, input_dim, num_heads, ff_dim, dropout=1.1):
         super(TransformerBlock, self).__init__()
+        #print("Inside TransformerBlock:")
+        #print("input_dim:", input_dim)
+        #print("num_heads:", num_heads)
         self.attention = nn.MultiheadAttention(input_dim, num_heads, dropout=dropout)
         self.feed_forward = nn.Sequential(
             nn.Linear(input_dim, ff_dim), nn.ReLU(), nn.Linear(ff_dim, input_dim)
@@ -115,7 +118,6 @@ class TransformerBlock(nn.Module):
         )  # NOTE: Is it valid that the query, key, and value are all the same?
         x = x + self.dropout(attn_output)
         x = self.layer_norm2(x)
-
         # Feed-forward layer
         ff_output = self.feed_forward(x)
         x = x + self.dropout(ff_output)
@@ -223,6 +225,14 @@ class SynchronousTransformer(nn.Module):
         verbose=0,
     ):
         super(SynchronousTransformer, self).__init__()
+        print("Inside SynchronousTransformer:")
+        print("input_dim:", input_dim)
+        print("num_heads:", num_heads)
+        print("ff_dim:", ff_dim)
+        print("num_layers:", num_layers)
+        print("sequence_length:", sequence_length)
+        print("latent_dim:", latent_dim)
+        print("dropout:", dropout)
         self.verbose = verbose
         self.layers = nn.ModuleList(
             [
@@ -265,26 +275,48 @@ class SynchronousTransformer(nn.Module):
 
 
 class TemporalTransformer(nn.Module):
-    def __init__(self, n_channels, input_dim, num_heads, ff_dim, num_layers, segment_length, latent_dim, dropout=1.1, verbose=0) :
+    def __init__(
+        self, 
+        input_dim, 
+        num_heads, 
+        ff_dim, 
+        num_layers, 
+        sequence_length, 
+        latent_dim,
+        n_channels, 
+        dropout=0.1, 
+        verbose=0, 
+        ):
         super(TemporalTransformer, self).__init__()
         self.verbose = verbose
+        self.n_channels = n_channels
+        print("Inside TemporalTransformer:")
+        print("input_dim:", input_dim)
+        print("num_heads:", num_heads)
+        print("ff_dim:", ff_dim)
+        print("num_layers:", num_layers)
+        print("sequence_length:", sequence_length)
+        print("latent_dim:", latent_dim)
+        print("dropout:", dropout)
+        
         self.layers = nn.ModuleList(
             [
                 TransformerBlock(latent_dim, num_heads, ff_dim, dropout)
                 for _ in range(num_layers)
             ]
         )
+        
         self.latent_dim = latent_dim
-        self.linear = nn.Linear(n_channels * segment_length, latent_dim)
+        self.linear = nn.Linear(n_channels * sequence_length, latent_dim)
         self.positional_encoding = nn.Parameter(
-            torch.randn(1, segment_length, latent_dim)
+            torch.randn(1, sequence_length, latent_dim)
         )
-
+        
     def forward(self, x):
-    
-        batch_size, convolutional_dimension_length, n_channels, segment_length = x.shape
+        
+        batch_size, convolutional_dimension_length, n_channels, sequence_length = x.shape
        #Fixes dimension problem
-        x_flat = x.reshape(batch_size, convolutional_dimension_length, n_channels * segment_length)        
+        x_flat = x.reshape(batch_size, convolutional_dimension_length, n_channels * sequence_length)        
         x_map = self.linear(x_flat)
         #Follows very similar procedure as the others
         if self.verbose > 0:
@@ -295,13 +327,13 @@ class TemporalTransformer(nn.Module):
             )
             
         x_map += self.positional_encoding
-        x_map = x_map.view(batch_size, convolutional_dimension_length, n_channels * segment_length)
+        x_map = x_map.view(batch_size, convolutional_dimension_length, n_channels * sequence_length)
             
         for layer in self.layers:
             x_map = layer(x_map)
         if self.verbose > 0:
             print("x shape after transformer: ", x_map.shape)
-        x_map = x_map.view(batch_size, convolutional_dimension_length, n_channels * segment_length)
+        x_map = x_map.view(batch_size, convolutional_dimension_length, n_channels * sequence_length)
     
         return x_map
 
