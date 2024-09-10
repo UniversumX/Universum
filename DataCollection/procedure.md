@@ -1,36 +1,32 @@
-first, open up browser and go to the website:
-https://console.neurosity.co/dashboard
-login with the email address and password provided.
-scroll down to the bottom of the page and click on the "star" button of "signal quality" panel.
-make sure the signal quality is good.
-if the signal quality is not good, try to adjust the headset and make sure the headset is in the correct position.
-using the phone app for a more detailed signal quality check and adjustment is also recommended.
+## Procedure
 
-next, go to the "brainwaves" tab. you can also go to this website:
-https://console.neurosity.co/brainwaves
-click on the first "start" button. this will start the visualization of the brainwaves.
+1. Open up browser and go to the [website](https://console.neurosity.co/dashboard)
+2. Login with the email address and password provided.
+3. Scroll down to the bottom of the page and click on the "star" button of "signal quality" panel.
+4. Make sure the signal quality is good.
+5. If the signal quality is not good, try to adjust the headset and make sure the headset is in the correct position.
+6. Using the phone app for a more detailed signal quality check and adjustment is also recommended.
+7. Next, go to the "brainwaves" tab. you can also go to this [website](https://console.neurosity.co/brainwaves)
+8. Click on the first "start" button. this will start the visualization of the brainwaves.
+   After setup is complete, we will start the python script to record the data.
+   The python script will record the data and save it to a file.
+9. Open up a terminal and navigate to the directory where the python script is located.
+10. Run the script:
 
-after setup is complete, we will start the python script to record the data.
-the python script will record the data and save it to a file.
-first, open up a terminal and navigate to the directory where the python script is located.
-a possible command to run the script is:
+`cd /path/to/Universum/DataCollection/`
+`python3 gui.py`
 
-
-```cd /path/to/Universum/DataCollection/```
-```python3 gui.py```
-
-this script will open a window asking for setup information (subject information, trial number, default trial time).
+This script will open a window asking for setup information (subject information, trial number, default trial time).
 subject information includes:
+
 - subject id
 - subject visit number
 
-trial number is the current number of the trial that is being recorded. default is 0!!! 0 is for baseline data.
+Trial number is the current number of the trial that is being recorded. default is 0!!! 0 is for baseline data.
 
-*** NOTE: the default trial number is 0!!! 0 is for baseline data. ***
+**_ NOTE: the default trial number is 0!!! 0 is for baseline data. _**
 
-*** NOTE: the default trial number is 0!!! 0 is for baseline data. ***
-
-*** NOTE: MAKE SURE YOU READ THE NOTES AND RECORD BASELINE DATA. ***
+**_ NOTE: MAKE SURE YOU READ THE NOTES AND RECORD BASELINE DATA. _**
 
 default trial time is the time in seconds that the trial will last. default is 60 seconds.
 
