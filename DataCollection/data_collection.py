@@ -9,11 +9,10 @@ import asyncio
 from datetime import datetime
 import csv
 from pathlib import Path
+
 # from Modules import influx_data
 from modules import local_storage, subject
 import threading
-
-
 
 
 """
@@ -28,26 +27,21 @@ python-dotenv for environment variable management.
 load_dotenv()
 
 # Access the variables
-neurosity_email = os.getenv('NEUROSITY_EMAIL')
-neurosity_password = os.getenv('NEUROSITY_PASSWORD')
-neurosity_device_id = os.getenv('NEUROSITY_DEVICE_ID')
+neurosity_email = os.getenv("NEUROSITY_EMAIL")
+neurosity_password = os.getenv("NEUROSITY_PASSWORD")
+neurosity_device_id = os.getenv("NEUROSITY_DEVICE_ID")
 
 
-
-neurosity = NeurositySDK({
-    "device_id": neurosity_device_id
-})
+neurosity = NeurositySDK({"device_id": neurosity_device_id})
 
 
-neurosity.login({
-    "email": neurosity_email,
-    "password": neurosity_password
-})
+neurosity.login({"email": neurosity_email, "password": neurosity_password})
 
 sub = subject.Subject()
 datawriter = local_storage.DataWriter(sub)
 
-def experiment_setup(subject_id = '0000', visit = 1, trial = 1):
+
+def experiment_setup(subject_id="0000", visit=1, trial=1):
     # Initialize the subject
     sub.set_subject_id(subject_id)
     sub.set_visit(visit)
@@ -63,26 +57,30 @@ def experiment_setup(subject_id = '0000', visit = 1, trial = 1):
 def info_neurosity():
     info = neurosity.get_info()
     print(info)
-    
+
+
 def handle_eeg_data(data):
     # print("data", data)
     # start = time.time()
-    timestamp = datetime.fromtimestamp(data['info']['startTime'] / 1000.0).strftime('%F %T.%f')[:-3]
-    channel_names = data['info']['channelNames']
-    label = data['label']
-    data_by_channel = data['data']
+    timestamp = datetime.fromtimestamp(data["info"]["startTime"] / 1000.0).strftime(
+        "%F %T.%f"
+    )[:-3]
+    channel_names = data["info"]["channelNames"]
+    label = data["label"]
+    data_by_channel = data["data"]
     sample_number = len(data_by_channel[0])
 
     for i in range(sample_number):
         row = dict()
-        row['timestamp'] = timestamp
+        row["timestamp"] = timestamp
         for j in range(len(channel_names)):
             row[channel_names[j]] = data_by_channel[j][i]
-    # Handling each value in values, you may need to adjust based on your actual requirements:
-        datawriter.write_data_to_csv(data_type = 'EEG', data = row, label = label)
+        # Handling each value in values, you may need to adjust based on your actual requirements:
+        datawriter.write_data_to_csv(data_type="EEG", data=row, label=label)
 
     # end = time.time()
     # print(end - start)
+
 
 # def handle_eeg_data(data):
 #     timestamp = datetime.utcnow()
@@ -115,12 +113,14 @@ def handle_eeg_data(data):
 
 #             # write to influx
 #            #  write_api.write(bucket=bucket, org=org, record=point)
-            
+
 
 def handle_accelerometer_data(data):
     # Directly uses 'data' assuming it contains 'x', 'y', 'z' acceleration values
     print("data", data)
-    timestamp = datetime.fromtimestamp(data['timestamp'] / 1000.0).strftime('%F %T.%f')[:-3]
+    timestamp = datetime.fromtimestamp(data["timestamp"] / 1000.0).strftime("%F %T.%f")[
+        :-3
+    ]
     # point = (
     #     Point("Accelerometer")
     #     .tag("device", os.getenv("NEUROSITY_DEVICE_ID"))
@@ -130,27 +130,31 @@ def handle_accelerometer_data(data):
     #     .time(timestamp, WritePrecision.NS)
     # )
     # Write to CSV
-    datawriter.write_data_to_csv('Accelerometer', {
-        'timestamp': timestamp,
-        'device_id': neurosity_device_id,
-        'x': data['x'],
-        'y': data['y'],
-        'z': data['z'],
-        'pitch': data['pitch'],
-        'roll': data['roll'],
-        'acceleration': data['acceleration'],
-        'inclination': data['inclination'], 
-    })
+    datawriter.write_data_to_csv(
+        "Accelerometer",
+        {
+            "timestamp": timestamp,
+            "device_id": neurosity_device_id,
+            "x": data["x"],
+            "y": data["y"],
+            "z": data["z"],
+            "pitch": data["pitch"],
+            "roll": data["roll"],
+            "acceleration": data["acceleration"],
+            "inclination": data["inclination"],
+        },
+    )
 
     # write to influx
     # write_api.write(bucket=bucket, org=org, record=point)
-    
+
 
 def signal_handler(sig, frame):
-    print('Emergency stop detected. Cleaning up...')
+    print("Emergency stop detected. Cleaning up...")
     # client.close()
-    print('Cleanup done. Exiting.')
+    print("Cleanup done. Exiting.")
     exit(0)
+
 
 def eeg():
     datawriter.check_directory()
@@ -163,11 +167,14 @@ def eeg():
     unsubscribe_accelerometer()
     # write_api.close()
 
+
 def trial_progress():
     datawriter.set_trial(datawriter.get_trial() + 1)
 
+
 def discard_last_trial():
     datawriter.discard_last_trial()
+
 
 def collect():
     eeg()
@@ -175,16 +182,18 @@ def collect():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
-    parser.add_argument("--duration", type=int, default=60, help="Duration to collect data in seconds.")
+    parser.add_argument(
+        "--duration", type=int, default=60, help="Duration to collect data in seconds."
+    )
     parser.add_argument("--subject_id", type=str, default="0000", help="Subject ID")
     parser.add_argument("--visit", type=int, default=0, help="Visit number")
     parser.add_argument("--trial", type=int, default=0, help="Trial number")
     args = parser.parse_args()
 
-    experiment_setup(args.subject_id, args.visit,args.trial)
+    experiment_setup(args.subject_id, args.visit, args.trial)
 
     signal.signal(signal.SIGINT, signal_handler)
-
+    collect()
 
     """
     Notes:
