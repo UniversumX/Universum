@@ -2,6 +2,7 @@ import tkinter as tk
 import time
 from data_collection import *
 from tkinter import messagebox
+from actions import *
 
 class TimerApp:
     def __init__(self, root, default_time=60):
@@ -34,6 +35,9 @@ class TimerApp:
         self.discard_button = tk.Button(self.root, text="Discard Last Trial", command=self.discard_last_trial)
         self.discard_button.config(state = 'disabled')
         self.discard_button.pack()
+
+        self.textbox = tk.Text(self.root, height=10, width=20)
+        self.textbox.pack(pady=10)
        
     def collect(self):
         datawriter.check_directory()
@@ -97,8 +101,26 @@ class TimerApp:
                 self.stop_button.config(state = 'disabled')
                 self.reset_button.config(state = 'normal')
                 self.discard_button.config(state = 'disabled')
+            
+            if len(procedures) != 0 and self.default_time - self.time_remaining >= procedures[0][0]:
+                self.update_animation(actions, procedures)
+                procedures.pop(0)
         else:
             self.timer_label.config(text=f"Time Remaining: {self.time_remaining}")
+    
+    def update_animation(self, actions, procedures):
+        action = actions[procedures[0][1]]
+        if action.text != None:
+            self.textbox.delete(1.0, tk.END)
+            self.textbox.insert(tk.INSERT, action.text)
+        elif action.audio != None:
+            # play audio
+            print("play audio at path: " + action.audio)
+        elif action.image != None:
+            # display image
+            print("display image at path: " + action.image)
+        else:
+            print("Invalid action")
     
 class InfoApp:
     def __init__(self, root): 
