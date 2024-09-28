@@ -8,98 +8,6 @@ from scipy import integrate
 
 matplotlib.use("TkAgg")
 
-# Load the data
-trial = 2
-eeg_data_path = f"../DataCollection/data/3/1/{trial}/eeg_data_raw.csv"
-accel_data_path = f"../DataCollection/data/3/1/{trial}/accelerometer_data.csv"
-
-eeg_data = pd.read_csv(eeg_data_path)
-accel_data = pd.read_csv(accel_data_path)
-
-# Convert timestamp to time since last epoch
-accel_data["timestamp"] = pd.to_datetime(accel_data["timestamp"]).astype(int) / 10**9
-eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"]).astype(int) / 10**9
-
-# Make the timestamps aligned/overlapping
-prev_eeg_shape = eeg_data.shape
-eeg_data = eeg_data[
-    (eeg_data["timestamp"] >= accel_data["timestamp"].iloc[0])
-    & (eeg_data["timestamp"] <= accel_data["timestamp"].iloc[-1])
-]
-accel_data = accel_data[
-    (accel_data["timestamp"] >= eeg_data["timestamp"].iloc[0])
-    & (accel_data["timestamp"] <= eeg_data["timestamp"].iloc[-1])
-]
-
-new_eeg_shape = eeg_data.shape
-print(f"Trimmed EEG data from {prev_eeg_shape} to {new_eeg_shape}")
-accel_data = accel_data.drop(columns=["device_id"])
-
-print(eeg_data.head())
-print(accel_data.head())
-
-# Align accel data with eeg data
-accel_data = accel_data.astype(float)
-eeg_data = eeg_data.astype(float)
-
-
-def time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data):
-    accel_data_columns = accel_data.columns
-    accel_data_np = accel_data.to_numpy()
-    new_accel_data = np.zeros((len(eeg_data), accel_data_np.shape[1]))
-    for i in range(accel_data_np.shape[1]):
-        new_accel_data[:, i] = np.interp(
-            eeg_data["timestamp"],
-            accel_data["timestamp"],
-            accel_data_np[:, i],
-        )
-    return pd.DataFrame(new_accel_data, columns=accel_data_columns)
-
-
-accel_data = time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data)
-print(accel_data.head())
-
-sampling_freq = 1 / eeg_data["timestamp"].diff().mean()
-print(f"Sampling frequency: {sampling_freq:.2f} Hz")
-
-sfreq = 256
-ch_names = eeg_data.columns[1:].tolist()
-ch_types = ["eeg"] * len(ch_names)
-
-head_tilt = np.where(accel_data["roll"] > -45, 1, 0)
-
-info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
-eeg_data_array = eeg_data[ch_names].to_numpy().T
-raw = mne.io.RawArray(eeg_data_array, info)
-cutoff_max = 30  # Hz
-cutoff_min = 1
-raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
-
-changes = np.diff(head_tilt)
-events = np.where(changes != 0)[0] + 1
-events = np.column_stack((events, np.zeros(len(events), int), head_tilt[events]))
-
-print(f"Events: {events}")
-
-
-def differential_entropy(pdf, lower, upper):
-    def integrand(x):
-        p = pdf(x)
-        return -p * np.log2(p) if p > 0 else 0
-
-    result, _ = integrate.quad(integrand, lower, upper)
-    return result
-
-
-NFFT = 1024
-percent_overlap = 1 - (1 / 32)
-
-# 4.65
-# 9.36
-# 31.982
-get_rid_of_these_frequencies = [4.65, 9.36, 31.982]
-raw.notch_filter(freqs=get_rid_of_these_frequencies)
-
 
 def plot_fft(data, sfreq, nfft, percent_overlap):
     pxx, freqs, bins, im = plt.specgram(
@@ -132,8 +40,95 @@ def plot_fft_with_entropy(data, sfreq, nfft, percent_overlap):
     plt.show()
 
 
-# plot_fft(raw.get_data()[0], sfreq, NFFT, percent_overlap)
+def differential_entropy(pdf, lower, upper):
+    def integrand(x):
+        p = pdf(x)
+        return -p * np.log2(p) if p > 0 else 0
 
+    result, _ = integrate.quad(integrand, lower, upper)
+    return result
+
+
+def time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data):
+    accel_data_columns = accel_data.columns
+    accel_data_np = accel_data.to_numpy()
+    new_accel_data = np.zeros((len(eeg_data), accel_data_np.shape[1]))
+    for i in range(accel_data_np.shape[1]):
+        new_accel_data[:, i] = np.interp(
+            eeg_data["timestamp"],
+            accel_data["timestamp"],
+            accel_data_np[:, i],
+        )
+    return pd.DataFrame(new_accel_data, columns=accel_data_columns)
+
+
+# Load the data
+trial = 2
+eeg_data_path = f"../DataCollection/data/3/1/{trial}/eeg_data_raw.csv"
+accel_data_path = f"../DataCollection/data/3/1/{trial}/accelerometer_data.csv"
+
+eeg_data = pd.read_csv(eeg_data_path)
+accel_data = pd.read_csv(accel_data_path)
+
+# Convert timestamp to time since last epoch
+accel_data["timestamp"] = pd.to_datetime(accel_data["timestamp"]).astype(int) / 10**9
+eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"]).astype(int) / 10**9
+
+# Make the timestamps aligned/overlapping
+prev_eeg_shape = eeg_data.shape
+eeg_data = eeg_data[
+    (eeg_data["timestamp"] >= accel_data["timestamp"].iloc[0])
+    & (eeg_data["timestamp"] <= accel_data["timestamp"].iloc[-1])
+]
+accel_data = accel_data[
+    (accel_data["timestamp"] >= eeg_data["timestamp"].iloc[0])
+    & (accel_data["timestamp"] <= eeg_data["timestamp"].iloc[-1])
+]
+
+new_eeg_shape = eeg_data.shape
+accel_data = accel_data.drop(columns=["device_id"])
+
+# Align accel data with eeg data
+accel_data = accel_data.astype(float)
+eeg_data = eeg_data.astype(float)
+
+accel_data = time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data)
+
+sampling_freq = 1 / eeg_data["timestamp"].diff().mean()
+# print(f"Sampling frequency: {sampling_freq:.2f} Hz")
+
+sfreq = 256
+ch_names = eeg_data.columns[1:].tolist()
+ch_types = ["eeg"] * len(ch_names)
+
+head_tilt = np.where(accel_data["roll"] > -45, 1, 0)
+
+info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
+eeg_data_array = eeg_data[ch_names].to_numpy().T
+raw = mne.io.RawArray(eeg_data_array, info)
+
+
+cutoff_max = 30  # Hz
+cutoff_min = 1
+raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
+
+changes = np.diff(head_tilt)
+events = np.where(changes != 0)[0] + 1
+events = np.column_stack((events, np.zeros(len(events), int), head_tilt[events]))
+
+print(f"Events: {events}")
+
+NFFT = 1024
+percent_overlap = 1 - (1 / 32)
+
+# 4.65
+# 9.36
+# 31.982
+get_rid_of_these_frequencies = [4.65, 9.36, 31.982]
+raw.notch_filter(freqs=get_rid_of_these_frequencies)
+
+
+# plot_fft(raw.get_data()[0], sfreq, NFFT, percent_overlap)
 fig = raw.compute_psd(tmax=np.inf, fmax=sfreq // 2).plot(
     average=False, amplitude=False, picks="data", exclude="bads"
 )
@@ -200,13 +195,81 @@ print(
 sources = ica.get_sources(whitened_raw).get_data()
 first_component_signal = sources[0, :]
 
-plt.figure()
-plt.plot(first_component_signal)
-plt.title("First Component Signal")
-plt.xlabel("Time (samples)")
-plt.ylabel("Amplitude")
-plt.show()
+# plt.figure()
+# plt.plot(first_component_signal)
+# plt.title("First Component Signal")
+# plt.xlabel("Time (samples)")
+# plt.ylabel("Amplitude")
+# plt.show()
 
 print("First component signal extracted.")
 
-plot_fft(first_component_signal, sfreq, NFFT, percent_overlap)
+# plot_fft(first_component_signal, sfreq, NFFT, percent_overlap)
+
+
+from sklearn.decomposition import NMF
+
+
+# After whitening the data
+print("Performing NMF...")
+n_components = 8  # You can adjust this number
+
+print("hiii")
+
+# model = NMF(n_components=n_components, init="random", random_state=0)
+# W = model.fit_transform(stft_data.T)
+# H = model.components_
+#
+# # Plot NMF components
+# plt.figure(figsize=(15, 10))
+# for i in range(n_components):
+#     plt.subplot(n_components // 2, 2, i + 1)
+#     plt.plot(H[i])
+#     plt.title(f"NMF Component {i+1}")
+#     plt.xlabel("Time")
+#     plt.ylabel("Amplitude")
+# plt.tight_layout()
+# plt.show()
+#
+# # Print relative importance of NMF features
+# print("Relative importance of NMF features:")
+# feature_importance = np.sum(W, axis=0)
+# feature_importance /= np.sum(feature_importance)
+# for i, importance in enumerate(feature_importance):
+#     print(f"Feature {i+1}: {importance:.4f}")
+#
+# # Reconstruct the signal using NMF components
+# reconstructed_data = np.dot(W, H)
+#
+# # Calculate reconstruction error
+# reconstruction_error = np.mean((stft_data.T - reconstructed_data) ** 2)
+# print(f"Reconstruction error: {reconstruction_error:.4f}")
+#
+# # Plot original vs reconstructed signal for the first channel
+# plt.figure(figsize=(15, 5))
+# plt.plot(stft_data[0], label="Original")
+# plt.plot(reconstructed_data[:, 0], label="Reconstructed")
+# plt.title("Original vs Reconstructed Signal (First Channel)")
+# plt.xlabel("Time")
+# plt.ylabel("Amplitude")
+# plt.legend()
+# plt.show()
+#
+# # Perform FFT on NMF components
+# for i in range(n_components):
+#     plot_fft(H[i], sfreq, NFFT, percent_overlap)
+#     plt.title(f"FFT of NMF Component {i+1}")
+#     plt.show()
+
+
+### Explort preprocessed data
+
+# do a tsne on the data
+
+from sklearn import TSNE
+
+tsne = TSNE(n_components=2, random_state=0)
+tsne_data = tsne.fit_transform(whitened_raw)
+
+plt.plot(tsne_data[:, 0], tsne_data[:, 1], "o")
+plt.show()
