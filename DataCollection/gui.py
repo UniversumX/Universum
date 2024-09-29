@@ -3,6 +3,7 @@ import time
 from data_collection import *
 from tkinter import messagebox
 from actions import *
+import pandas as pd
 
 class TimerApp:
     def __init__(self, root, default_time=60):
@@ -38,6 +39,9 @@ class TimerApp:
 
         self.textbox = tk.Text(self.root, height=10, width=20)
         self.textbox.pack(pady=10)
+
+        self.action_data = pd.DataFrame(columns=["timestamp", "action_value"])
+        self.current_action_value = -1 # no action
        
     def collect(self):
         datawriter.check_directory()
@@ -71,6 +75,8 @@ class TimerApp:
         self.reset_button.config(state = 'normal')
         self.discard_button.config(state = 'normal')
 
+        self.action_data.to_csv("action_data.csv", index=False)
+
     def reset_timer(self):
         if self.time_remaining != 0:
             discard_last_trial()
@@ -102,9 +108,14 @@ class TimerApp:
                 self.reset_button.config(state = 'normal')
                 self.discard_button.config(state = 'disabled')
             
-            if len(procedures) != 0 and self.default_time - self.time_remaining >= procedures[0][0]:
+            timestamp = self.default_time - self.time_remaining
+            if len(procedures) != 0 and timestamp >= procedures[0][0]:
                 self.update_animation(actions, procedures)
+                self.current_action_value = actions[procedures[0][1]].action_value
                 procedures.pop(0)
+            
+            new_row = pd.DataFrame([{"timestamp": timestamp, "action_value": self.current_action_value}])
+            self.action_data = pd.concat([self.action_data, new_row], ignore_index=True)
         else:
             self.timer_label.config(text=f"Time Remaining: {self.time_remaining}")
     
