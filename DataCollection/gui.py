@@ -1,5 +1,5 @@
 import tkinter as tk
-import time
+import time, os
 from data_collection import *
 from tkinter import messagebox
 from datetime import datetime
@@ -12,7 +12,7 @@ def get_formatted_timestamp():
 
 
 class TimerApp:
-    def __init__(self, root, default_time=60):
+    def __init__(self, root, data_path, default_time=60):
         self.root = root
         self.root.title("Timer App")
 
@@ -53,6 +53,8 @@ class TimerApp:
         self.action_data = pd.DataFrame(columns=["timestamp", "action_value"])
         self.current_action_value = -1  # no action
 
+        self.data_path = data_path
+
     def collect(self):
         datawriter.check_directory()
         self.unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
@@ -87,7 +89,7 @@ class TimerApp:
         self.reset_button.config(state="normal")
         self.discard_button.config(state="normal")
 
-        self.action_data.to_csv("action_data.csv", index=False)
+        self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
 
     def reset_timer(self):
         if self.time_remaining != 0:
@@ -190,7 +192,8 @@ class InfoApp:
     def new_window(self):
         self.root.destroy()  # close the current window
         self.root = tk.Tk()  # create another Tk instance
-        self.app = TimerApp(self.root, int(self.default_time))  # create Demo2 window
+        data_path = os.path.join("data", self.id, self.visit, self.trial)
+        self.app = TimerApp(self.root, data_path, int(self.default_time))  # create Demo2 window
         self.root.mainloop()
 
     def validate_submit(self):
