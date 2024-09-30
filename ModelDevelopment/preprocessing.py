@@ -126,13 +126,13 @@ eeg_data_array = eeg_data[ch_names].to_numpy().T
 raw = mne.io.RawArray(eeg_data_array, info)
 
 
+# Apply a band filter to the data
 cutoff_max = 45  # Cut off frequency for band filter
 cutoff_min = 1  # Cut off frequency for band filter
 raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
 
-
 fft_window_size = 1024
-percent_overlap = 1 - (1 / 32)
+percent_overlap = 0.95
 
 # These frequencies seem to be noise
 # 4.65
