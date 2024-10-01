@@ -8,3 +8,5 @@ node_modules/
 # data/
 .DS_Store
 *.nix
+venv/
+neurotech_environment/
