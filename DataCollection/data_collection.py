@@ -9,6 +9,7 @@ import asyncio
 from datetime import datetime
 import csv
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 # from Modules import influx_data
 from modules import local_storage, subject
@@ -40,6 +41,12 @@ neurosity.login({"email": neurosity_email, "password": neurosity_password})
 sub = subject.Subject()
 datawriter = local_storage.DataWriter(sub)
 
+# Initialize live visualization aspects
+plt.ion()
+fig, axs = plt.subplots(8, 1, figsize=(10, 12), sharex=True)
+channels = ['CP3', 'C3', 'F5', 'PO3', 'PO4', 'F6', 'C4', 'CP4']
+channel_data = {channel: [] for channel in channels}
+
 
 def experiment_setup(subject_id="0000", visit=1, trial=1):
     # Initialize the subject
@@ -59,6 +66,20 @@ def info_neurosity():
     print(info)
 
 
+def live_plot_eeg_data(row):
+    for channel in channels:
+        scaled_value = row[channel] / 100000.0
+        channel_data[channel].append(scaled_value)
+
+    for ax, channel in zip(axs, channels):
+        ax.cla()
+        ax.plot(channel_data[channel], 'r')
+        ax.set_title(channel)
+        ax.set_ylim(-1, 1)
+
+    plt.pause(0.1)
+
+
 def handle_eeg_data(data):
     # print("data", data)
     # start = time.time()
@@ -75,6 +96,8 @@ def handle_eeg_data(data):
         row["timestamp"] = timestamp
         for j in range(len(channel_names)):
             row[channel_names[j]] = data_by_channel[j][i]
+            
+        live_plot_eeg_data(row)
         # Handling each value in values, you may need to adjust based on your actual requirements:
         datawriter.write_data_to_csv(data_type="EEG", data=row, label=label)
 
