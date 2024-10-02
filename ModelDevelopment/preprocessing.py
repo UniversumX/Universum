@@ -73,17 +73,27 @@ def time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data):
     return pd.DataFrame(new_accel_data, columns=accel_data_columns)
 
 
+def get_data_from_visit(subject_id, trial_number, visit_number):
+    # Load data as CSV
+
+    data_directory_path = (
+        f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
+    )
+
+    eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
+    accel_data = pd.read_csv(data_directory_path + "accelerometer_data.csv")
+    action_data = pd.read_csv(data_directory_path + "action_data.csv")
+    return eeg_data, accel_data, action_data
+
+
 # Define the data paths
-trial = 2
-eeg_data_path = f"../DataCollection/data/3/1/{trial}/eeg_data_raw.csv"
-accel_data_path = f"../DataCollection/data/3/1/{trial}/accelerometer_data.csv"
-action_data_path = f"../DataCollection/data/3/1/{trial}/action_data.csv"
+trial_number = 1
+subject_id = 103
+visit_number = 1
 
-
-# Load data as CSV
-eeg_data = pd.read_csv(eeg_data_path)
-accel_data = pd.read_csv(accel_data_path)
-action_data = pd.read_csv(action_data_path)
+eeg_data, accel_data, action_data = get_data_from_visit(
+    subject_id, trial_number, visit_number
+)
 
 # Convert timestamp to time since last epoch (a float)
 accel_data["timestamp"] = pd.to_datetime(accel_data["timestamp"]).astype(int) / 10**9
@@ -117,7 +127,6 @@ accel_data = accel_data[
     & (accel_data["timestamp"] <= eeg_data["timestamp"].iloc[-1])
 ]
 
-
 # Make the data floats (tbh idt we need this)
 accel_data = accel_data.astype(float)
 eeg_data = eeg_data.astype(float)
@@ -148,7 +157,6 @@ events = np.array(events)
 print(events)
 
 event_dict = {
-    "Nothing": -1,
     "left_elbow_flex": 1,
     "left_elbow_relax": 2,
     "right_elbow_flex": 3,
@@ -169,17 +177,14 @@ epochs = mne.Epochs(
     tmax=0.5,
     baseline=(None, 0),
     preload=True,
-    event_repeated="merge",
 )
 mne.viz.plot_events(events, sfreq=sampling_frequency, first_samp=0)
 plt.show()
-
 
 epochs.plot(events=events, event_id=event_dict)
 
 # Plot the epochs as an image map
 epochs.plot_image(picks="eeg")
-
 
 # Apply a band filter to the data
 cutoff_max = 45  # Cut off frequency for band filter
