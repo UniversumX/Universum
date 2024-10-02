@@ -77,17 +77,35 @@ def time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data):
 trial = 2
 eeg_data_path = f"../DataCollection/data/3/1/{trial}/eeg_data_raw.csv"
 accel_data_path = f"../DataCollection/data/3/1/{trial}/accelerometer_data.csv"
+action_data_path = f"../DataCollection/data/3/1/{trial}/action_data.csv"
+
 
 # Load data as CSV
 eeg_data = pd.read_csv(eeg_data_path)
 accel_data = pd.read_csv(accel_data_path)
+action_data = pd.read_csv(action_data_path)
 
 # Convert timestamp to time since last epoch (a float)
 accel_data["timestamp"] = pd.to_datetime(accel_data["timestamp"]).astype(int) / 10**9
 eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"]).astype(int) / 10**9
+action_data["timestamp"] = pd.to_datetime(action_data["timestamp"]).astype(int) / 10**9
 
 # Get rid of device id as we don't care about it
 accel_data = accel_data.drop(columns=["device_id"])
+print(action_data.head(20))
+
+#        timestamp  action_value
+# 0   1.727632e+09            -1
+# 1   1.727632e+09            -1
+# 2   1.727632e+09            -1
+# 3   1.727632e+09            -1
+# 4   1.727632e+09             1
+# 5   1.727632e+09             1
+# 6   1.727632e+09             1
+# 7   1.727632e+09             1
+# 8   1.727632e+09             1
+# 9   1.727632e+09             2
+# 10  1.727632e+09             2
 
 # Make the timestamps so that they start and end at the same time, throw out data outside the starting/stopping times of each dataset
 eeg_data = eeg_data[
@@ -119,11 +137,48 @@ ch_types = ["eeg"] * len(ch_names)
 
 ### TODO:
 # Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
-# events =
+# Create events from action_data
+events = []
+for index, row in action_data.iterrows():
+    sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+    action_value = int(row["action_value"])
+    events.append([sample, 0, action_value])
+
+events = np.array(events)
+print(events)
+
+event_dict = {
+    "Nothing": -1,
+    "left_elbow_flex": 1,
+    "left_elbow_relax": 2,
+    "right_elbow_flex": 3,
+    "right_elbow_relax": 4,
+}
+
 
 info = mne.create_info(ch_names=ch_names, sfreq=sampling_frequency, ch_types=ch_types)
 eeg_data_array = eeg_data[ch_names].to_numpy().T
 raw = mne.io.RawArray(eeg_data_array, info)
+# raw.add_events(events, stim_channel="STI 014")
+
+epochs = mne.Epochs(
+    raw,
+    events,
+    event_id=event_dict,
+    tmin=-0.2,
+    tmax=0.5,
+    baseline=(None, 0),
+    preload=True,
+    event_repeated="merge",
+)
+mne.viz.plot_events(events, sfreq=sampling_frequency, first_samp=0)
+plt.show()
+
+
+epochs.plot(events=events, event_id=event_dict)
+
+# Plot the epochs as an image map
+epochs.plot_image(picks="eeg")
 
 
 # Apply a band filter to the data
