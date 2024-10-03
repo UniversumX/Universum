@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # Sample data
 trial = 1
-eeg_data_path = f"./data/103/1/1/"
+eeg_data_path = f"../DataCollection/data/103/1/1/"
 data = pd.read_csv(eeg_data_path +"eeg_data_raw.csv")  # replace with your data
 labels = pd.read_csv(eeg_data_path +"action_data.csv")
 
