@@ -53,6 +53,7 @@ class TimerApp:
 
         self.action_data = pd.DataFrame(columns=["timestamp", "action_value"])
         self.current_action_value = -1  # no action
+        self.procedure_index = 0 # first procedure
 
         self.data_path = data_path
 
@@ -110,6 +111,9 @@ class TimerApp:
         self.discard_button.config(state="disabled")
         self.update_timer()
 
+        self.procedure_index = 0
+        self.textbox.delete(1.0, tk.END)
+
     def discard_last_trial(self):
         discard_last_trial()
         self.discard_button.config(state="disabled")
@@ -130,10 +134,10 @@ class TimerApp:
                 self.discard_button.config(state="disabled")
 
             timestamp = self.default_time - self.time_remaining
-            if len(procedures) != 0 and timestamp >= procedures[0][0]:
+            if self.procedure_index <= len(procedures) and timestamp >= procedures[self.procedure_index][0]:
                 self.update_animation(actions, procedures)
-                self.current_action_value = actions[procedures[0][1]].action_value
-                procedures.pop(0)
+                self.current_action_value = actions[procedures[self.procedure_index][1]].action_value
+                self.procedure_index += 1
 
             new_row = pd.DataFrame(
                 [
@@ -148,7 +152,7 @@ class TimerApp:
             self.timer_label.config(text=f"Time Remaining: {self.time_remaining}")
 
     def update_animation(self, actions, procedures):
-        action = actions[procedures[0][1]]
+        action = actions[procedures[self.procedure_index][1]]
         if action.text != None:
             self.textbox.delete(1.0, tk.END)
             self.textbox.insert(tk.INSERT, action.text)
