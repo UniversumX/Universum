@@ -3,8 +3,4 @@ matplotlib==3.9.2
 neurosity==2.2.0
 pandas==2.2.2
 python-dotenv==1.0.1
-<<<<<<< HEAD
 tk
-=======
-tk
->>>>>>> f0ef82e68362a1381a1d062d3777240dd1c2029d
