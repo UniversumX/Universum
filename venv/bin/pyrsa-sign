@@ -1,4 +1,4 @@
-#!/home/matth/Projects/Universum/venv/bin/python3.11
+#!/home/matth/Projects/temp/Universum/venv/bin/python3.11
 # -*- coding: utf-8 -*-
 import re
 import sys
