@@ -8,12 +8,17 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import FastICA, NMF, PCA
 from scipy.signal import find_peaks
 
+
 # CNN Model
 class EEGFeatureExtractorCNN(nn.Module):
     def __init__(self):
         super(EEGFeatureExtractorCNN, self).__init__()
-        self.conv1 = nn.Conv1d(8, 16, 5)  # Input channels: 8, Output channels: 16, Kernel size: 5
-        self.conv2 = nn.Conv1d(16, 32, 5)  # Input channels: 16, Output channels: 32, Kernel size: 5
+        self.conv1 = nn.Conv1d(
+            8, 16, 5
+        )  # Input channels: 8, Output channels: 16, Kernel size: 5
+        self.conv2 = nn.Conv1d(
+            16, 32, 5
+        )  # Input channels: 16, Output channels: 32, Kernel size: 5
         self.pool = nn.MaxPool1d(2)  # Max pooling with kernel size 2
 
         # Use a dummy tensor to dynamically calculate the flattened size for the fully connected layer
@@ -40,44 +45,54 @@ class EEGFeatureExtractorCNN(nn.Module):
 
         # Flatten the input for the fully connected layer
         x = x.view(-1, self.flattened_size)
-        
+
         # Pass through fully connected layers
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
 
+
 # Load EEG Data
 def load_eeg_data(file_path):
     print(f"Loading EEG file: {file_path}")
     data = pd.read_csv(file_path)
-    
+
     # Debugging: Check for any non-numeric columns
     print("Checking for non-numeric columns...")
     non_numeric_cols = data.select_dtypes(exclude=[np.number])
     if not non_numeric_cols.empty:
         print("Non-numeric columns found:")
         print(non_numeric_cols.head())
-    
+
     # Drop any non-numeric columns (e.g., timestamps)
     data = data.select_dtypes(include=[np.number])
-    
+
     return data
+
 
 # Perform NMF
 def perform_nmf(eeg_data, n_components=8):
-    model = NMF(n_components=n_components, init='random', random_state=0, max_iter=500)
+    model = NMF(n_components=n_components, init="random", random_state=0, max_iter=500)
+
+    # This uses the signal of EEG data, I think NMF works better on the STFT version of the signal
+    # because then dimensionality reduction is more valid (going from 513 features -> 8 features is better than 8 -> 2)
+    # Also STFT data is automatically non-negative. IDK if doing absolute value on a signal removes some information.
     W = model.fit_transform(np.abs(eeg_data))  # Ensure no negative values for NMF
     H = model.components_
     return W, H
 
+
 # Detect Repeating Features
 def detect_repeating_features(activation_matrix, sampling_rate=256):
     summed_features = activation_matrix.sum(axis=0)
-    peaks, _ = find_peaks(summed_features, distance=sampling_rate * 0.5, height=50, prominence=20)
+    peaks, _ = find_peaks(
+        summed_features, distance=sampling_rate * 0.5, height=50, prominence=20
+    )
     return peaks
 
+
 # Main Analysis
-eeg_file = '../DataCollection/data/1234/1234/1234/eeg_data_raw.csv'
+eeg_file = "../DataCollection/data/1234/1234/1234/eeg_data_raw.csv"
 eeg_data = load_eeg_data(eeg_file)
 
 # Reshape data for CNN
@@ -124,12 +139,14 @@ n_components = H.shape[0]
 fig, axs = plt.subplots(n_components, 1, figsize=(10, n_components * 3))
 
 for i in range(n_components):  # Iterate through each component (rows of H)
-    axs[i].plot(H[i, :], label=f'NMF Component {i+1}')
-    peaks, _ = find_peaks(H[i, :], distance=sequence_length // 4)  # Adjust peak detection per component
-    axs[i].scatter(peaks, H[i, peaks], color='r', label='Detected Peaks')
-    axs[i].set_title(f'NMF Component {i+1} Activation with Peaks')
-    axs[i].set_xlabel('Time')
-    axs[i].set_ylabel('Activation')
+    axs[i].plot(H[i, :], label=f"NMF Component {i+1}")
+    peaks, _ = find_peaks(
+        H[i, :], distance=sequence_length // 4
+    )  # Adjust peak detection per component
+    axs[i].scatter(peaks, H[i, peaks], color="r", label="Detected Peaks")
+    axs[i].set_title(f"NMF Component {i+1} Activation with Peaks")
+    axs[i].set_xlabel("Time")
+    axs[i].set_ylabel("Activation")
     axs[i].legend()
 
 plt.tight_layout()
@@ -138,18 +155,18 @@ plt.show()
 # Compare CNN Features with NMF
 plt.figure(figsize=(10, 5))
 plt.subplot(1, 2, 1)
-plt.plot(cnn_features.detach().numpy()[0, 0, :], label='CNN Feature 1')
-plt.title('CNN Feature 1 Activation')
-plt.xlabel('Time')
-plt.ylabel('Activation')
+plt.plot(cnn_features.detach().numpy()[0, 0, :], label="CNN Feature 1")
+plt.title("CNN Feature 1 Activation")
+plt.xlabel("Time")
+plt.ylabel("Activation")
 plt.legend()
 
 plt.subplot(1, 2, 2)
-plt.plot(H[0, :], label='NMF Component 1')
-plt.scatter(peaks, H[0, peaks], color='r', label='Detected Peaks')
-plt.title('NMF Component 1 Activation')
-plt.xlabel('Time')
-plt.ylabel('Activation')
+plt.plot(H[0, :], label="NMF Component 1")
+plt.scatter(peaks, H[0, peaks], color="r", label="Detected Peaks")
+plt.title("NMF Component 1 Activation")
+plt.xlabel("Time")
+plt.ylabel("Activation")
 plt.legend()
 
 plt.tight_layout()
@@ -165,18 +182,18 @@ ica_features = ica.fit_transform(eeg_data_cnn.reshape(-1, n_channels))
 for i in range(2):
     plt.figure(figsize=(10, 5))
     plt.subplot(1, 3, 1)
-    plt.plot(H[i, :], label=f'NMF Component {i+1}')
-    plt.title(f'NMF Component {i+1}')
+    plt.plot(H[i, :], label=f"NMF Component {i+1}")
+    plt.title(f"NMF Component {i+1}")
     plt.legend()
 
     plt.subplot(1, 3, 2)
-    plt.plot(pca_features[:, i], label=f'PCA Component {i+1}')
-    plt.title(f'PCA Component {i+1}')
+    plt.plot(pca_features[:, i], label=f"PCA Component {i+1}")
+    plt.title(f"PCA Component {i+1}")
     plt.legend()
 
     plt.subplot(1, 3, 3)
-    plt.plot(ica_features[:, i], label=f'ICA Component {i+1}')
-    plt.title(f'ICA Component {i+1}')
+    plt.plot(ica_features[:, i], label=f"ICA Component {i+1}")
+    plt.title(f"ICA Component {i+1}")
     plt.legend()
 
     plt.tight_layout()
