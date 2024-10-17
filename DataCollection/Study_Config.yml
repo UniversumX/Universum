@@ -1,0 +1,22 @@
+study_name: "Sample Study"
+study_description: "This is a description of the sample study."
+
+actions:
+  left_elbow_flex:
+    action_description: "Flex your left elbow."
+    action_value: 5
+    text: "Please flex your left elbow so your arm raises to shoulder-level."
+    audio: "path/to/left_elbow_audio.mp3"
+    image: "path/to/left_elbow_image.png"
+  right_knee_ext:
+    action_description: "Extend your right knee."
+    action_value: 3
+    text: "Please extend your right knee while standing."
+    audio: "path/to/right_knee_audio.mp3"
+    image: "path/to/right_knee_image.png"
+
+procedure:
+  - timestamp: "00:00:01"
+    action: "left_elbow_flex"
+  - timestamp: "00:00:10"
+    action: "right_knee_ext"
