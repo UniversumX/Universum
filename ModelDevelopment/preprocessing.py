@@ -3,11 +3,31 @@ import matplotlib
 import numpy as np
 import mne
 import pandas as pd
+from typing import Dict
+
+# from DataCollection.actions import Action
 from scipy import stats
 from scipy import integrate
+from scipy import signal
+from sklearn.decomposition import PCA
+import argparse
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Action:
+    action_value: int
+    text: str
+    audio: str
+    image: str
+
 
 # I (Matt) am running nixos and if I don't set this command then matplotlib won't show
 matplotlib.use("TkAgg")
+
+EPSILON = 1e-8
 
 
 def plot_fft(
@@ -27,7 +47,7 @@ def plot_fft(
     return pxx, freqs, bins
 
 
-def plot_entropy_of_data_time_and_frequncy_dimensions(pxx, freqs, bins):
+def plot_entropy_of_data_time_and_frequncy_dimensions(pxx, freqs, times):
     """
     Plots the entropies of the data as a function of time, and a function of frequency.
     The purpose of this is the higher the entropy, the more random the data is so the more information the data has
@@ -49,7 +69,7 @@ def plot_entropy_of_data_time_and_frequncy_dimensions(pxx, freqs, bins):
     plt.show()
 
     plt.figure()
-    plt.plot(bins, frame_entropies)
+    plt.plot(times, frame_entropies)
     plt.title("Entropy of Time Frames")
     plt.xlabel("Time (s)")
     plt.ylabel("Entropy")
@@ -86,175 +106,278 @@ def get_data_from_visit(subject_id, trial_number, visit_number):
     return eeg_data, accel_data, action_data
 
 
-# Define the data paths
-trial_number = 1
-subject_id = 103
-visit_number = 1
-
-eeg_data, accel_data, action_data = get_data_from_visit(
-    subject_id, trial_number, visit_number
-)
-
-# Convert timestamp to time since last epoch (a float)
-accel_data["timestamp"] = pd.to_datetime(accel_data["timestamp"]).astype(int) / 10**9
-eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"]).astype(int) / 10**9
-action_data["timestamp"] = pd.to_datetime(action_data["timestamp"]).astype(int) / 10**9
-
-# Get rid of device id as we don't care about it
-accel_data = accel_data.drop(columns=["device_id"])
-print(action_data.head(20))
-
-#        timestamp  action_value
-# 0   1.727632e+09            -1
-# 1   1.727632e+09            -1
-# 2   1.727632e+09            -1
-# 3   1.727632e+09            -1
-# 4   1.727632e+09             1
-# 5   1.727632e+09             1
-# 6   1.727632e+09             1
-# 7   1.727632e+09             1
-# 8   1.727632e+09             1
-# 9   1.727632e+09             2
-# 10  1.727632e+09             2
-
-# Make the timestamps so that they start and end at the same time, throw out data outside the starting/stopping times of each dataset
-eeg_data = eeg_data[
-    (eeg_data["timestamp"] >= accel_data["timestamp"].iloc[0])
-    & (eeg_data["timestamp"] <= accel_data["timestamp"].iloc[-1])
-]
-accel_data = accel_data[
-    (accel_data["timestamp"] >= eeg_data["timestamp"].iloc[0])
-    & (accel_data["timestamp"] <= eeg_data["timestamp"].iloc[-1])
-]
-
-# Make the data floats (tbh idt we need this)
-accel_data = accel_data.astype(float)
-eeg_data = eeg_data.astype(float)
-
-# Time align the data by linearly interpolating the accelerometer data
-accel_data = time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data)
-
-# Make sure the sampling frequency is the sampling frequency said on the device
-# sampling_freq = 1 / eeg_data["timestamp"].diff().mean()
-# print(f"Sampling frequency: {sampling_freq:.2f} Hz")
-
-sampling_frequency = 256
-
-# Create column names (mne Raw Array needs this)
-ch_names = eeg_data.columns[1:].tolist()
-ch_types = ["eeg"] * len(ch_names)
-
-### TODO:
-# Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
-# Create events from action_data
-events = []
-for index, row in action_data.iterrows():
-    sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
-    action_value = int(row["action_value"])
-    events.append([sample, 0, action_value])
-
-events = np.array(events)
-print(events)
-
-event_dict = {
-    "left_elbow_flex": 1,
-    "left_elbow_relax": 2,
-    "right_elbow_flex": 3,
-    "right_elbow_relax": 4,
-}
+def get_data_from_directory(data_directory_path: str):
+    eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
+    accel_data = pd.read_csv(data_directory_path + "accelerometer_data.csv")
+    action_data = pd.read_csv(data_directory_path + "action_data.csv")
+    return eeg_data, accel_data, action_data
 
 
-info = mne.create_info(ch_names=ch_names, sfreq=sampling_frequency, ch_types=ch_types)
-eeg_data_array = eeg_data[ch_names].to_numpy().T
-raw = mne.io.RawArray(eeg_data_array, info)
-# raw.add_events(events, stim_channel="STI 014")
-
-epochs = mne.Epochs(
-    raw,
-    events,
-    event_id=event_dict,
-    tmin=-0.2,
-    tmax=0.5,
-    baseline=(None, 0),
-    preload=True,
-)
-mne.viz.plot_events(events, sfreq=sampling_frequency, first_samp=0)
-plt.show()
-
-epochs.plot(events=events, event_id=event_dict)
-
-# Plot the epochs as an image map
-epochs.plot_image(picks="eeg")
-
-# Apply a band filter to the data
-cutoff_max = 45  # Cut off frequency for band filter
-cutoff_min = 1  # Cut off frequency for band filter
-raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
-
-fft_window_size = 1024
-percent_overlap = 0.95
-
-# These frequencies seem to be noise
-# 4.65
-# 9.36
-# 31.982
-get_rid_of_these_frequencies = [4.65, 9.36, 31.982]
-raw.notch_filter(freqs=get_rid_of_these_frequencies)
+def convert_timestamp_to_time_since_last_epoch(df):
+    """
+    Converts the timestamp to time since the last epoch
+    """
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype(int) / 10**9
+    return df
 
 
-fig = raw.compute_psd(tmax=np.inf, fmax=sampling_frequency // 2).plot(
-    average=False, amplitude=False, picks="data", exclude="bads"
-)
-plt.show()
-# whiten the data with PCA
-
-# Whiten the data :)
-noise_cov = mne.compute_raw_covariance(raw).data
-# find the eigenvectors of the covariance matrix to do PCA
-epsilon = 1e-8
-eigenvalues, eigenvectors = np.linalg.eig(noise_cov)
-inverse_lambda = np.diag(1 / (eigenvalues + epsilon))
-whitened_data = np.sqrt(inverse_lambda) @ eigenvectors.T @ raw.get_data()
-whitened_raw = mne.io.RawArray(whitened_data, raw.info)
+def align_data_to_experiment_start_and_end_time(df, start_time: float, end_time: float):
+    """
+    Aligns the data to the experiment start and end time
+    """
+    assert end_time > start_time
+    return df[(df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)]
 
 
-# DO some plotting
-pxx, freqs, bins = plot_fft(
-    whitened_raw.get_data()[0], sampling_frequency, fft_window_size, percent_overlap
-)
-plot_entropy_of_data_time_and_frequncy_dimensions(pxx, freqs, bins)
+def whiten_data_with_pca(data: np.array):
+    """
+    This function takes in a numpy array and then whitens it
+    """
+    data = data.copy()
+    data = data - data.mean()
 
-# Perform ICA on the data
-ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
-ica.fit(whitened_raw)
-ica.plot_sources(whitened_raw, show_scrollbars=False)
-plt.show()
+    noise_cov = data @ data.T / data.shape[1]
+
+    # find the eigenvectors of the covariance matrix to do PCA
+    eigenvalues, eigenvectors = np.linalg.eig(noise_cov)
+    inverse_lambda = np.diag(1 / (eigenvalues + EPSILON))
+    return np.sqrt(inverse_lambda) @ eigenvectors.T @ data
 
 
-def print_relative_importance_of_ICA_features(ica):
-    for i, component in enumerate(ica.mixing_matrix_):
-        explained_var_ratio = ica.get_explained_variance_ratio(
-            whitened_raw, components=[i], ch_type="eeg"
+def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
+    """
+    This function will run our preprocessing pipeline on a specific trial.
+
+    Args:
+    - directory_path: The path to the directory containing the data for a specific trial. Ex: "../DataCollection/data/103/1/1/"
+
+    Returns:
+    - eeg_data: Preprocessed EEG data, shape is (num_epochs, num_channels, frequency_bands, num_samples_per_epochs)
+    - accel_data: Untouched accelerometer data
+    - action_data: Untouched action data
+    """
+
+    # Make sure the sampling frequency is the sampling frequency said on the device
+    sampling_frequency = 256  # From the documentation
+    window_size = 96
+    percent_overlap = 0.95
+
+    eeg_data, accel_data, action_data = get_data_from_directory(directory_path)
+
+    # Convert timestamp to time since last epoch (a float)
+    eeg_data, accel_data, action_data = map(
+        convert_timestamp_to_time_since_last_epoch, [eeg_data, accel_data, action_data]
+    )
+
+    # Get rid of device id as we don't care about it
+    accel_data = accel_data.drop(columns=["device_id"])
+
+    # Make the timestamps so that they start and end at the same time, throw out data outside the starting/stopping times of each dataset
+    experiment_start_time = max(
+        [accel_data["timestamp"].iloc[0], eeg_data["timestamp"].iloc[0]]
+    )
+    experiment_end_time = min(
+        [accel_data["timestamp"].iloc[-1], eeg_data["timestamp"].iloc[-1]]
+    )
+
+    eeg_data, accel_data, action_data = map(
+        lambda df: align_data_to_experiment_start_and_end_time(
+            df, experiment_start_time, experiment_end_time
+        ),
+        [eeg_data, accel_data, action_data],
+    )
+
+    accel_data = time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data)
+    # assert accel_data.dtype == float, "accel_data is not a float!"
+    # assert eeg_data.dtype == float, "eeg_data is not a float!"
+    #
+    assert len(eeg_data) == len(
+        accel_data
+    ), f"len(egg_data) != len(accel_data) ({len(eeg_data)} != {len(accel_data)})"
+    assert len(action_data) > 0, "There is no action data!"
+
+    # Time align the data by linearly interpolating the accelerometer data
+
+    # Create column names (mne Raw Array needs this)
+    ch_names = eeg_data.columns[1:].tolist()
+    ch_types = ["eeg"] * len(ch_names)
+
+    events = []
+    for index, row in action_data.iterrows():
+        sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+        action_value = int(row["action_value"])
+        events.append([sample, 0, action_value])
+
+    events = np.array(events)
+
+    event_dict = {
+        action_name: action.action_value for (action_name, action) in actions.items()
+    }
+
+    info = mne.create_info(
+        ch_names=ch_names, sfreq=sampling_frequency, ch_types=ch_types
+    )
+    eeg_data_array = eeg_data[ch_names].to_numpy().T
+    raw = mne.io.RawArray(eeg_data_array, info)
+
+    # Apply a band filter to the data
+    cutoff_max = 45  # Cut off frequency for band filter
+    cutoff_min = 1  # Cut off frequency for band filter
+    raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
+
+    # raw.add_events(events, stim_channel="STI 014")
+
+    epochs = mne.Epochs(
+        raw,
+        events,
+        event_id=event_dict,
+        # tmin=0,
+        tmax=2,
+        # baseline=(None, 0),
+        preload=True,
+    )
+    x = epochs.get_data(copy=True)[:-1]  # the last event is end of data collection
+    y = epochs.events[:-1, -1]  # the last event of the data
+    num_epochs, num_channels, num_samples = x.shape
+    x = x.reshape(
+        num_channels, num_epochs * num_samples
+    )  # stack all of the epochs together for PCA
+
+    if should_visualize:
+        mne.viz.plot_events(events, sfreq=sampling_frequency, first_samp=0)
+        plt.show()
+        epochs.plot(events=events, event_id=event_dict)
+        # Plot the epochs as an image map
+        epochs.plot_image(picks="eeg")
+        fig = raw.compute_psd(tmax=np.inf, fmax=sampling_frequency // 2).plot(
+            average=False, amplitude=False, picks="data", exclude="bads"
         )
-        print(
-            f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
-        )
+        plt.show()
+
+    # whiten the data with PCA
+    whitened_data = whiten_data_with_pca(x)
+
+    frequencies, times, stft_data = signal.stft(
+        x[0],
+        fs=sampling_frequency,
+        nperseg=window_size,
+        noverlap=window_size * percent_overlap,
+    )
+
+    x = whitened_data.reshape(num_channels, num_epochs, num_samples).transpose(1, 0, 2)
+
+    # DO some plotting
+    x = np.apply_along_axis(
+        lambda x: signal.stft(
+            x,
+            fs=sampling_frequency,
+            nperseg=window_size,
+            noverlap=window_size * percent_overlap,
+        )[2],
+        2,
+        x,
+    )
+
+    # get rid of frequencies above cutoff_max frequency
+    top_index = int(np.ceil(x.shape[2] / ((sampling_frequency / 2) / cutoff_max)))
+    x = x[:, :, :top_index, :]
+
+    num_epochs, num_channels, num_frequencies, num_samples = x.shape
+    # stack the epochs together for PCA
+    if should_visualize:
+        plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
+
+    # num_components = 32
+    # features = np.zeros((num_channels, num_components, num_samples))
+    #
+    # # do a spectogram of the data
+    # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+    # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+    # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+    # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+    # print(x.shape)
+    # for channel in range(x.shape[0]):
+    #     # so this plots the spectogram, it should be:
+    #     plt.figure()
+    #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+    #     plt.title(f"Spectrogram of Channel {channel}")
+    #     plt.ylabel("Frequency * Epoch [Hz]")
+    #     plt.xlabel("Time [s]")
+    #     plt.show()
+    #
+    # features = PCA(n_components=2).fit_transform(stft_data.T)
+
+    # plt.scatter(features[:, 0], features[:, 1])
+    # plt.show()
+
+    # ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
+    # ica.fit(whitened_raw)
+    # ica.plot_sources(whitened_raw, show_scrollbars=False)
+    # plt.show()
+    #
+    # def print_relative_importance_of_ICA_features(ica):
+    #     for i, component in enumerate(ica.mixing_matrix_):
+    #         explained_var_ratio = ica.get_explained_variance_ratio(
+    #             whitened_raw, components=[i], ch_type="eeg"
+    #         )
+    #         print(
+    #             f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
+    #         )
+    #
+    # print_relative_importance_of_ICA_features(ica)
+    #
+    # sources = ica.get_sources(whitened_raw).get_data()
+    # first_component_signal = sources[0, :]
+
+    # print(x.shape)
+    # print(accel_data.shape)
+    # print(action_data.shape)
+
+    return x, accel_data, action_data
 
 
-print_relative_importance_of_ICA_features(ica)
+if __name__ == "__main__":
+    ## Replace this with reading from the study
+    actions = {
+        "left_elbow_flex": Action(
+            action_value=1,
+            text="Please flex your left elbow so your arm raises to shoulder level",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "left_elbow_relax": Action(
+            action_value=2,
+            text="Please relax your left elbow back to original state",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "right_elbow_flex": Action(
+            action_value=3,
+            text="Please flex your right elbow so your arm raises to shoulder level",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "right_elbow_relax": Action(
+            action_value=4,
+            text="Please relax your right elbow back to original state",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "end_collection": Action(
+            action_value=5, text="Data collection ended", audio=None, image=None
+        ),
+    }
 
-sources = ica.get_sources(whitened_raw).get_data()
-first_component_signal = sources[0, :]
-
-# Ignore this for now: vvvvv
-from sklearn.decomposition import NMF
-
-
-# After whitening the data
-print("Performing NMF...")
-n_components = 8  # You can adjust this number
-
-print("hiii")
+    # Define the data paths
+    trial_number = 1
+    subject_id = 103
+    visit_number = 1
+    eeg_data, accel_data, action_data = preprocess(
+        f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/",
+        actions,
+        should_visualize=False,
+    )
+    print("Eeg data shape:", eeg_data.shape)
 
 # model = NMF(n_components=n_components, init="random", random_state=0)
 # W = model.fit_transform(stft_data.T)
