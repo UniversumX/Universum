@@ -188,16 +188,13 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     )
 
     accel_data = time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data)
-    # assert accel_data.dtype == float, "accel_data is not a float!"
-    # assert eeg_data.dtype == float, "eeg_data is not a float!"
-    #
+
     assert len(eeg_data) == len(
         accel_data
     ), f"len(egg_data) != len(accel_data) ({len(eeg_data)} != {len(accel_data)})"
     assert len(action_data) > 0, "There is no action data!"
 
     # Time align the data by linearly interpolating the accelerometer data
-
     # Create column names (mne Raw Array needs this)
     ch_names = eeg_data.columns[1:].tolist()
     ch_types = ["eeg"] * len(ch_names)
@@ -224,8 +221,6 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     cutoff_max = 45  # Cut off frequency for band filter
     cutoff_min = 1  # Cut off frequency for band filter
     raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
-
-    # raw.add_events(events, stim_channel="STI 014")
 
     epochs = mne.Epochs(
         raw,
