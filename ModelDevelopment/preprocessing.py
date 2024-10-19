@@ -146,15 +146,23 @@ def whiten_data_with_pca(data: np.array):
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
-    This function will run our preprocessing pipeline on a specific trial.
-
     Args:
     - directory_path: The path to the directory containing the data for a specific trial. Ex: "../DataCollection/data/103/1/1/"
+    - actions: the actions that the user did
+    - should_visualize: If we should visualize some plots (used for debugging)
 
     Returns:
     - eeg_data: Preprocessed EEG data, shape is (num_epochs, num_channels, frequency_bands, num_samples_per_epochs)
     - accel_data: Untouched accelerometer data
     - action_data: Untouched action data
+
+
+    This function will run our preprocessing pipeline on a specific trial. This includes:
+        - Aligning the timestamps of the data (so accel data and eeg data are aligned in time)
+        - Interpolates accel data so that accel data datapoints align up with eeg data
+        - Band filtering
+        - STFT on eeg data
+
     """
 
     # Make sure the sampling frequency is the sampling frequency said on the device
@@ -222,6 +230,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     cutoff_min = 1  # Cut off frequency for band filter
     raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
 
+    # Epoch the data so that every epoch is a trial
     epochs = mne.Epochs(
         raw,
         events,
@@ -259,9 +268,10 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         noverlap=window_size * percent_overlap,
     )
 
+    # STFT should be done per channel, per epoch, not mixed.
     x = whitened_data.reshape(num_channels, num_epochs, num_samples).transpose(1, 0, 2)
 
-    # DO some plotting
+    # Run stft on the data
     x = np.apply_along_axis(
         lambda x: signal.stft(
             x,
@@ -282,6 +292,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     if should_visualize:
         plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
 
+    # Do PCA on the data in a feature extraction portion
     # num_components = 32
     # features = np.zeros((num_channels, num_components, num_samples))
     #
