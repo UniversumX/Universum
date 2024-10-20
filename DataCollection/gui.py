@@ -5,7 +5,6 @@ from tkinter import messagebox
 from datetime import datetime
 from actions import *
 import pandas as pd
-import pygame
 
 
 def get_formatted_timestamp():
@@ -57,9 +56,6 @@ class TimerApp:
 
         self.data_path = data_path
 
-        self.threads = []
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-
     def collect(self):
         datawriter.check_directory()
         self.unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
@@ -88,9 +84,6 @@ class TimerApp:
             self.root.after(1000, self.update_timer)
 
     def stop_timer(self):
-        for thread in self.threads:
-            thread.join()
-
         self.stop()
         self.is_running = False
         self.start_button.config(state="normal")
@@ -165,26 +158,11 @@ class TimerApp:
         elif action.audio != None:
             # play audio
             print("play audio at path: " + action.audio)
-            audio_thread = threading.Thread(target=self.play_audio, args=(action.audio,))
-            self.threads.append(audio_thread)
-            audio_thread.start()
         elif action.image != None:
             # display image
             print("display image at path: " + action.image)
         else:
             print("Invalid action")
-
-    def play_audio(self, audio_path):
-        try:
-            pygame.mixer.music.load(audio_path)
-            pygame.mixer.music.play()
-        except pygame.error as e:
-            print(f"Error loading audio file {audio_path}: {e}")
-
-    def on_closing(self):
-        for thread in self.threads:
-            thread.join()
-        self.root.destroy()
 
 
 class InfoApp:
@@ -266,7 +244,6 @@ class InfoApp:
 
 
 def main():
-    pygame.mixer.init()
     root = tk.Tk()
     app = InfoApp(root)
     root.mainloop()
