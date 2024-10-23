@@ -202,6 +202,14 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     ), f"len(egg_data) != len(accel_data) ({len(eeg_data)} != {len(accel_data)})"
     assert len(action_data) > 0, "There is no action data!"
 
+    # Apply Wiener filter to the eeg data ignoring timestamps
+    # can replace the rest of eeg_data below with eeg_data_filtered
+    # Did a deep copy for now but can remove that later
+    # applying filter independently for each column
+    eeg_columns = eeg_data.columns[1:]
+    eeg_data_filtered = eeg_data.copy()
+    eeg_data_filtered[eeg_columns] = eeg_data[eeg_columns].apply(lambda col: signal.wiener(col), axis=0)
+
     # Time align the data by linearly interpolating the accelerometer data
     # Create column names (mne Raw Array needs this)
     ch_names = eeg_data.columns[1:].tolist()
