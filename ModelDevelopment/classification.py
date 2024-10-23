@@ -5,6 +5,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
 from preprocessing import preprocess  # Import your preprocessing function
+from scipy.stats import mode
+
+from scipy.stats import mode
+
+
+
 
 def extract_features(eeg_data, channels, freq_bands):
     """
@@ -101,13 +107,16 @@ def classify_eeg_data(subject_id, visit_number, trial_number, actions):
     # Map GMM clusters to actual labels
     # This step is necessary because GMM assigns arbitrary labels to its components.
     # We use the training set to establish the mapping based on majority voting.
-    from scipy.stats import mode
+
+    # Assuming cluster is an array of indices for y_train
 
     mapping = {}
     for i in range(4):  # Assuming 4 clusters in GMM
         cluster = np.where(y_train_pred == i)[0]
+        result = mode(y_train[cluster])
+
         if len(cluster) > 0:
-            mapped_label = mode(y_train[cluster])[0][0]
+            mapped_label = mode(y_train[cluster])[0]
             mapping[i] = mapped_label
 
     # Apply the mapping to predicted values
