@@ -19,16 +19,22 @@ def extract_features(eeg_data, channels, freq_bands):
     Returns:
         numpy array: Feature matrix of shape (num_epochs, num_features).
     """
+    num_epochs, num_channels, num_frequency_bands, num_samples_per_epoch = eeg_data.shape
+
+    # Ensure that the freq_bands indices are within bounds of the data
+    valid_freq_bands = [band for band in freq_bands if band < num_frequency_bands]
+
     features = []
-    for epoch in eeg_data:
+    for epoch in eeg_data:  # Iterate over epochs
         epoch_features = []
-        for channel_idx in channels:
-            for band_idx in freq_bands:
-                # Extract the mean power from the specific frequency band for the given channel
-                power = np.mean(epoch[channel_idx][band_idx])
-                epoch_features.append(power)
-        features.append(epoch_features)
+        for channel_idx in channels:  # Iterate over selected channels
+            for band_idx in valid_freq_bands:  # Iterate over valid frequency bands
+                # Compute the mean power across the time samples (amplitude values)
+                power = np.mean(np.abs(epoch[channel_idx][band_idx]))  # Mean over time samples
+                epoch_features.append(power)  # Append feature
+        features.append(epoch_features)  # Append features for the epoch
     return np.array(features)
+
 
 def load_data_and_labels(subject_id, visit_number, trial_number, actions):
     """
@@ -50,7 +56,7 @@ def load_data_and_labels(subject_id, visit_number, trial_number, actions):
     eeg_data, accel_data, action_data = preprocess(directory_path, actions, should_visualize=False)
 
     # Define channel and frequency bands to use for feature extraction
-    channels_to_use = [1, 6]  # Example: C3 and C4 channel indices
+    channels_to_use = [0, 1, 2, 3, 4, 5, 6, 7]  
     mu_band_idx = [8, 9, 10, 11]  # Example mu band indices (8-12 Hz)
     beta_band_idx = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]  # Beta band (13-30 Hz)
     freq_bands_to_use = mu_band_idx + beta_band_idx
@@ -71,8 +77,18 @@ def classify_eeg_data(subject_id, visit_number, trial_number, actions):
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    # Split the data into training and test sets
+    # Debugging: Print the lengths of X and y to ensure they are consistent
+    print(f"Length of X (features): {len(X_scaled)}")
+    print(f"Length of y (labels): {len(y)}")
+
+    # Ensure X and y have the same length
+    min_length = min(len(X_scaled), len(y))
+    X_scaled = X_scaled[:min_length]
+    y = y[:min_length]
+
+    # Now, split the data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
 
     # Train a Gaussian Mixture Model with 4 components (one for each class)
     gmm = GaussianMixture(n_components=4, random_state=42)
