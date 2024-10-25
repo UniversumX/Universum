@@ -7,9 +7,6 @@ from sklearn.preprocessing import StandardScaler
 from preprocessing import preprocess  # Import your preprocessing function
 from scipy.stats import mode
 
-from scipy.stats import mode
-
-
 
 
 def extract_features(eeg_data, channels, freq_bands):
@@ -75,9 +72,40 @@ def load_data_and_labels(subject_id, visit_number, trial_number, actions):
     
     return X, y
 
-def classify_eeg_data(subject_id, visit_number, trial_number, actions):
-    # Load and preprocess data
-    X, y = load_data_and_labels(subject_id, visit_number, trial_number, actions)
+def load_multiple_trials(subject_id, visit_number, trial_numbers, actions):
+    """
+    Loads and preprocesses the EEG data from multiple trials and aggregates them.
+    
+    Args:
+        subject_id (str): The subject ID.
+        visit_number (int): The visit number.
+        trial_numbers (list): A list of trial numbers to load and aggregate.
+        actions (dict): Dictionary mapping action names to their corresponding Action objects.
+    
+    Returns:
+        tuple: (X, y) - Aggregated feature matrix and corresponding labels from all trials.
+    """
+    all_X = []
+    all_y = []
+
+    # Loop over all trial numbers
+    for trial_number in trial_numbers:
+        # Load data from each trial
+        X, y = load_data_and_labels(subject_id, visit_number, trial_number, actions)
+
+        # Append the data from this trial to the overall dataset
+        all_X.append(X)
+        all_y.append(y)
+    
+    # Concatenate the data from all trials
+    X_combined = np.vstack(all_X)  # Stack vertically
+    y_combined = np.concatenate(all_y)  # Concatenate labels
+
+    return X_combined, y_combined
+
+def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, actions):
+    # Load and preprocess data from multiple trials
+    X, y = load_multiple_trials(subject_id, visit_number, trial_numbers, actions)
 
     # Standardize the features
     scaler = StandardScaler()
@@ -95,7 +123,6 @@ def classify_eeg_data(subject_id, visit_number, trial_number, actions):
     # Now, split the data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-
     # Train a Gaussian Mixture Model with 4 components (one for each class)
     gmm = GaussianMixture(n_components=4, random_state=42)
     gmm.fit(X_train)
@@ -105,11 +132,6 @@ def classify_eeg_data(subject_id, visit_number, trial_number, actions):
     y_test_pred = gmm.predict(X_test)
 
     # Map GMM clusters to actual labels
-    # This step is necessary because GMM assigns arbitrary labels to its components.
-    # We use the training set to establish the mapping based on majority voting.
-
-    # Assuming cluster is an array of indices for y_train
-
     mapping = {}
     for i in range(4):  # Assuming 4 clusters in GMM
         cluster = np.where(y_train_pred == i)[0]
@@ -146,6 +168,6 @@ if __name__ == "__main__":
     # Example parameters (replace with actual values)
     subject_id = "105"
     visit_number = 1
-    trial_number = 1
+    trial_numbers = [1, 2, 5]  # Using multiple trials
 
-    classify_eeg_data(subject_id, visit_number, trial_number, actions)
+    classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, actions)
