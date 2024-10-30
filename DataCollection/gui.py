@@ -71,6 +71,8 @@ class TimerApp:
         self.unsubscribe_brainwaves()
         self.unsubscribe_accelerometer()
 
+        self.save_action_data()
+
     def start_timer(self):
         if self.time_remaining == 0:
             self.time_remaining = self.default_time
@@ -97,7 +99,11 @@ class TimerApp:
         self.reset_button.config(state="normal")
         self.discard_button.config(state="normal")
 
+        self.save_action_data()
+
+    def save_action_data(self):
         self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
+
 
     def reset_timer(self):
         if self.time_remaining != 0:
