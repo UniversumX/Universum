@@ -6,68 +6,68 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
 from preprocessing import preprocess  # Import your preprocessing function
 from scipy.stats import mode
+from sklearn.decomposition import PCA
 
-
-
-def extract_features(eeg_data, channels, freq_bands):
+def get_frequency_band_indices(frequencies, band_min, band_max):
     """
-    Extracts features from the preprocessed EEG data.
-    We will take the mean power from each frequency band for specific channels.
+    Returns the indices of frequencies that fall within a specified band range.
+    
+    Args:
+        frequencies (array): Array of frequency values corresponding to the data's frequency dimension.
+        band_min (float): Minimum frequency of the band.
+        band_max (float): Maximum frequency of the band.
+    
+    Returns:
+        list: Indices of the frequencies that fall within the specified band range.
+    """
+    return [i for i, freq in enumerate(frequencies) if band_min <= freq <= band_max]
+
+def extract_features(eeg_data, channels, frequencies):
+    """
+    Extracts features from the preprocessed EEG data based on mu and beta bands.
     
     Args:
         eeg_data (numpy array): Preprocessed EEG data of shape (num_epochs, num_channels, num_frequency_bands, num_samples_per_epoch).
         channels (list): List of channel indices to extract features from.
-        freq_bands (list): List of frequency band indices to extract features from.
+        frequencies (array): Array of frequency values for the third dimension in eeg_data.
     
     Returns:
         numpy array: Feature matrix of shape (num_epochs, num_features).
     """
-    num_epochs, num_channels, num_frequency_bands, num_samples_per_epoch = eeg_data.shape
-
-    # Ensure that the freq_bands indices are within bounds of the data
-    valid_freq_bands = [band for band in freq_bands if band < num_frequency_bands]
+    # Get indices for mu (8-12 Hz) and beta (13-30 Hz) bands
+    mu_band_indices = get_frequency_band_indices(frequencies, 8, 12)
+    beta_band_indices = get_frequency_band_indices(frequencies, 13, 30)
+    freq_bands_to_use = mu_band_indices + beta_band_indices
 
     features = []
     for epoch in eeg_data:  # Iterate over epochs
         epoch_features = []
         for channel_idx in channels:  # Iterate over selected channels
-            for band_idx in valid_freq_bands:  # Iterate over valid frequency bands
+            for band_idx in freq_bands_to_use:  # Iterate over valid frequency bands
                 # Compute the mean power across the time samples (amplitude values)
                 power = np.mean(np.abs(epoch[channel_idx][band_idx]))  # Mean over time samples
                 epoch_features.append(power)  # Append feature
         features.append(epoch_features)  # Append features for the epoch
     return np.array(features)
 
-
+# Example of usage in load_data_and_labels
+# Assuming `frequencies` is an array of frequency values corresponding to the third dimension of eeg_data
 def load_data_and_labels(subject_id, visit_number, trial_number, actions):
-    """
-    Loads and preprocesses the EEG data from the specified directory.
-    
-    Args:
-        subject_id (str): The subject ID.
-        visit_number (int): The visit number.
-        trial_number (int): The trial number.
-        actions (dict): Dictionary mapping action names to their corresponding Action objects.
-    
-    Returns:
-        tuple: (X, y) - Preprocessed feature matrix and corresponding labels.
-    """
-    # Construct the data directory path
+    # Load preprocessed data
     directory_path = f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
-
-    # Call the preprocess function from your preprocessing script
     eeg_data, accel_data, action_data = preprocess(directory_path, actions, should_visualize=False)
 
-    # Define channel and frequency bands to use for feature extraction
-    channels_to_use = [0, 1, 2, 3, 4, 5, 6, 7]  
-    mu_band_idx = [8, 9, 10, 11]  # Example mu band indices (8-12 Hz)
-    beta_band_idx = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]  # Beta band (13-30 Hz)
-    freq_bands_to_use = mu_band_idx + beta_band_idx
+    # Extract the number of samples per epoch (from the last dimension of eeg_data)
+    num_samples_per_epoch = eeg_data.shape[-1]
 
-    # Extract features from the EEG data
-    X = extract_features(eeg_data, channels_to_use, freq_bands_to_use)
+    # Generate frequency values for positive frequencies only (assuming real-valued EEG data)
+    frequencies = np.fft.rfftfreq(num_samples_per_epoch, d=1/Fs)
+    
+    # Define channels
+    channels_to_use = [0, 1, 2, 3, 4, 5, 6, 7]
 
-    # Get the labels from the action data
+    # Extract features
+    X = extract_features(eeg_data, channels_to_use, frequencies)
     y = action_data["action_value"].values  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
     
     return X, y
@@ -110,15 +110,29 @@ def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, a
     # Standardize the features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
+"""
+    # Reduce X_scaled to 2 components using PCA
+    pca = PCA(n_components=2)
+    X_pca = pca.fit_transform(X_scaled)
+
+    # Scatter plot of the reduced features
+    plt.figure(figsize=(10, 6))
+    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y, cmap='viridis', edgecolor='k', s=50)
+    plt.title('PCA of X_scaled')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.colorbar(label='Class Label')
+    plt.show()
+"""
 
     # Debugging: Print the lengths of X and y to ensure they are consistent
-    print(f"Length of X (features): {len(X_scaled)}")
-    print(f"Length of y (labels): {len(y)}")
+    #print(f"Length of X (features): {len(X_scaled)}")
+    #print(f"Length of y (labels): {len(y)}")
 
     # Ensure X and y have the same length
-    min_length = min(len(X_scaled), len(y))
-    X_scaled = X_scaled[:min_length]
-    y = y[:min_length]
+    #min_length = min(len(X_scaled), len(y))
+    #X_scaled = X_scaled[:min_length]
+    #y = y[:min_length]
 
     # Now, split the data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
@@ -153,6 +167,7 @@ def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, a
     print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
     print("Classification Report:")
     print(classification_report(y_test, y_test_mapped, target_names=["left elbow relax", "left elbow flex", "right elbow relax", "right elbow flex"]))
+    
 
 if __name__ == "__main__":
     # Example actions dictionary (replace with actual Action objects)
