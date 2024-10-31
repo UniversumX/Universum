@@ -110,7 +110,7 @@ def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, a
     # Standardize the features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-"""
+    """
     # Reduce X_scaled to 2 components using PCA
     pca = PCA(n_components=2)
     X_pca = pca.fit_transform(X_scaled)
@@ -123,7 +123,7 @@ def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, a
     plt.ylabel('Principal Component 2')
     plt.colorbar(label='Class Label')
     plt.show()
-"""
+    """
 
     # Debugging: Print the lengths of X and y to ensure they are consistent
     #print(f"Length of X (features): {len(X_scaled)}")
