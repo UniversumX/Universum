@@ -4,6 +4,8 @@ import numpy as np
 import mne
 import pandas as pd
 from typing import Dict
+import os
+from loguru import logger
 
 # from DataCollection.actions import Action
 from scipy import stats
@@ -107,9 +109,24 @@ def get_data_from_visit(subject_id, trial_number, visit_number):
 
 
 def get_data_from_directory(data_directory_path: str):
-    eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
-    accel_data = pd.read_csv(data_directory_path + "accelerometer_data.csv")
-    action_data = pd.read_csv(data_directory_path + "action_data.csv")
+    eeg_file = os.path.join(data_directory_path, "eeg_data_raw.csv")
+    accel_file = os.path.join(data_directory_path, "accelerometer_data.csv")
+    action_file = os.path.join(data_directory_path, "action_data.csv")
+    
+    # Check if all required files exist
+    if not os.path.exists(eeg_file) or not os.path.exists(accel_file) or not os.path.exists(action_file):
+        logger.warning(f"One or more CSV files are missing in directory: {data_directory_path}. Skipping this folder.")
+        return None, None, None  # Return None to indicate skipping
+    
+    # Try to read the CSV files
+    try:
+        eeg_data = pd.read_csv(eeg_file)
+        accel_data = pd.read_csv(accel_file)
+        action_data = pd.read_csv(action_file)
+    except Exception as e:
+        logger.warning(f"Error reading CSV files in {data_directory_path}: {e}")
+        return None, None, None
+    
     return eeg_data, accel_data, action_data
 
 
@@ -143,6 +160,16 @@ def whiten_data_with_pca(data: np.array):
     inverse_lambda = np.diag(1 / (eigenvalues + EPSILON))
     return np.sqrt(inverse_lambda) @ eigenvectors.T @ data
 
+def preprocess_person(directory_path: str, actions: Dict[str, Action], should_visualize=False):
+    res = []
+    items = os.listdir(directory_path)
+    full_paths = [os.path.join(directory_path, item) for item in items]
+    for full_path in full_paths:
+        x, accel_data, action_data = preprocess(full_path, actions, should_visualize)
+        if not x or not accel_data or not action_data:
+            continue
+        res.append([x, accel_data, action_data])
+    return res
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
@@ -171,6 +198,8 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     percent_overlap = 0.95
 
     eeg_data, accel_data, action_data = get_data_from_directory(directory_path)
+    if not eeg_data or not accel_data or not action_data:
+        return None, None, None
 
     # Convert timestamp to time since last epoch (a float)
     eeg_data, accel_data, action_data = map(
@@ -385,15 +414,31 @@ if __name__ == "__main__":
     }
 
     # Define the data paths
-    trial_number = 1
+
+
+
+    # trial_number = 1
+    # subject_id = 103
+    # visit_number = 1
+    # eeg_data, accel_data, action_data = preprocess(
+    #     f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/",
+    #     actions,
+    #     should_visualize=False,
+    # )
+    # print("Eeg data shape:", eeg_data.shape)
     subject_id = 103
     visit_number = 1
-    eeg_data, accel_data, action_data = preprocess(
-        f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/",
+    res = preprocess_person(
+        f"../DataCollection/data/{subject_id}/{visit_number}/",
         actions,
         should_visualize=False,
     )
-    print("Eeg data shape:", eeg_data.shape)
+    for eeg_data, accel_data, action_data in res:
+        print("Eeg data shape:", eeg_data.shape)
+
+
+
+
 
 # model = NMF(n_components=n_components, init="random", random_state=0)
 # W = model.fit_transform(stft_data.T)
