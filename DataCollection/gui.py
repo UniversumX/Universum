@@ -53,7 +53,7 @@ class TimerApp:
 
         self.action_data = pd.DataFrame(columns=["timestamp", "action_value"])
         self.current_action_value = -1  # no action
-        self.procedure_index = 0 # first procedure
+        self.procedure_index = 0  # first procedure
 
         self.data_path = data_path
 
@@ -102,8 +102,9 @@ class TimerApp:
         self.save_action_data()
 
     def save_action_data(self):
-        self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
-
+        self.action_data.to_csv(
+            os.path.join(self.data_path, "action_data.csv"), index=False
+        )
 
     def reset_timer(self):
         if self.time_remaining != 0:
@@ -140,9 +141,14 @@ class TimerApp:
                 self.discard_button.config(state="disabled")
 
             timestamp = self.default_time - self.time_remaining
-            if self.procedure_index <= len(procedures) and timestamp >= procedures[self.procedure_index][0]:
+            if (
+                self.procedure_index <= len(procedures)
+                and timestamp >= procedures[self.procedure_index][0]
+            ):
                 self.update_animation(actions, procedures)
-                self.current_action_value = actions[procedures[self.procedure_index][1]].action_value
+                self.current_action_value = actions[
+                    procedures[self.procedure_index][1]
+                ].action_value
                 self.procedure_index += 1
 
             new_row = pd.DataFrame(
@@ -165,7 +171,9 @@ class TimerApp:
         elif action.audio != None:
             # play audio
             print("play audio at path: " + action.audio)
-            audio_thread = threading.Thread(target=self.play_audio, args=(action.audio,))
+            audio_thread = threading.Thread(
+                target=self.play_audio, args=(action.audio,)
+            )
             self.threads.append(audio_thread)
             audio_thread.start()
         elif action.image != None:
@@ -225,7 +233,9 @@ class InfoApp:
         self.root.destroy()  # close the current window
         self.root = tk.Tk()  # create another Tk instance
         data_path = os.path.join("data", self.id, self.visit, self.trial)
-        self.app = TimerApp(self.root, data_path, int(self.default_time))  # create Demo2 window
+        self.app = TimerApp(
+            self.root, data_path, int(self.default_time)
+        )  # create Demo2 window
         self.root.mainloop()
 
     def validate_submit(self):
