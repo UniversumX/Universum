@@ -1,5 +1,7 @@
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+import matplotlib
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
@@ -57,8 +59,20 @@ def load_data_and_labels(subject_id, visit_number, trial_number, actions):
     directory_path = f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
     eeg_data, accel_data, action_data = preprocess(directory_path, actions, should_visualize=False)
 
+    # Print the number of epochs in eeg_data
+    num_epochs = eeg_data.shape[0]
+    print(f"Number of epochs in EEG data: {num_epochs}")
+    
+    # Print the number of entries in action_data
+    num_action_entries = len(action_data)
+    print(f"Number of action data entries: {num_action_entries}")
+
+    
+
     # Extract the number of samples per epoch (from the last dimension of eeg_data)
     num_samples_per_epoch = eeg_data.shape[-1]
+
+    Fs = 256  # Sampling frequency in Hz
 
     # Generate frequency values for positive frequencies only (assuming real-valued EEG data)
     frequencies = np.fft.rfftfreq(num_samples_per_epoch, d=1/Fs)
@@ -68,7 +82,7 @@ def load_data_and_labels(subject_id, visit_number, trial_number, actions):
 
     # Extract features
     X = extract_features(eeg_data, channels_to_use, frequencies)
-    y = action_data["action_value"].values  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
+    y = action_data  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
     
     return X, y
 
@@ -110,41 +124,30 @@ def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, a
     # Standardize the features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    """
+
+    # Now, split the data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+    
+    # Train a Gaussian Mixture Model with 4 components (one for each class)
+    gmm = GaussianMixture(n_components=4, random_state=42)
+    gmm.fit(X_train)
+    # gmm.fit(X_scaled)
+    # Predict the class of the test data
+    # test = gmm.predict(X_scaled)
+    y_train_pred = gmm.predict(X_train)
+    y_test_pred = gmm.predict(X_test)
+    '''
     # Reduce X_scaled to 2 components using PCA
     pca = PCA(n_components=2)
     X_pca = pca.fit_transform(X_scaled)
 
     # Scatter plot of the reduced features
     plt.figure(figsize=(10, 6))
-    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y, cmap='viridis', edgecolor='k', s=50)
-    plt.title('PCA of X_scaled')
-    plt.xlabel('Principal Component 1')
-    plt.ylabel('Principal Component 2')
+    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=test, cmap='viridis', edgecolor='k', s=50)
     plt.colorbar(label='Class Label')
     plt.show()
-    """
-
-    # Debugging: Print the lengths of X and y to ensure they are consistent
-    #print(f"Length of X (features): {len(X_scaled)}")
-    #print(f"Length of y (labels): {len(y)}")
-
-    # Ensure X and y have the same length
-    #min_length = min(len(X_scaled), len(y))
-    #X_scaled = X_scaled[:min_length]
-    #y = y[:min_length]
-
-    # Now, split the data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-
-    # Train a Gaussian Mixture Model with 4 components (one for each class)
-    gmm = GaussianMixture(n_components=4, random_state=42)
-    gmm.fit(X_train)
-
-    # Predict the class of the test data
-    y_train_pred = gmm.predict(X_train)
-    y_test_pred = gmm.predict(X_test)
-
+    '''
+    
     # Map GMM clusters to actual labels
     mapping = {}
     for i in range(4):  # Assuming 4 clusters in GMM
@@ -183,6 +186,6 @@ if __name__ == "__main__":
     # Example parameters (replace with actual values)
     subject_id = "105"
     visit_number = 1
-    trial_numbers = [1, 2, 5]  # Using multiple trials
+    trial_numbers = [1]  # Using multiple trials
 
     classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, actions)
