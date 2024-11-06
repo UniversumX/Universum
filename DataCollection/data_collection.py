@@ -98,7 +98,7 @@ def handle_eeg_data(data):
         for j in range(len(channel_names)):
             row[channel_names[j]] = data_by_channel[j][i]
 
-        live_plot_eeg_data(row)
+        # live_plot_eeg_data(row)
         # Handling each value in values, you may need to adjust based on your actual requirements:
         datawriter.write_data_to_csv(data_type="EEG", data=row, label=label)
 
