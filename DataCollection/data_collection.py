@@ -15,6 +15,10 @@ import matplotlib.pyplot as plt
 from modules import local_storage, subject
 import threading
 
+from pylsl import StreamInlet, resolve_stream
+from datetime import datetime
+import csv
+import time
 
 """
 Ensure you have the necessary packages installed in your environment:
@@ -80,12 +84,46 @@ def live_plot_eeg_data(row):
     plt.pause(0.1)
 
 
+def write_data_to_csv(timestamp, sample, channel_names=None, label=None):
+    with open('eeg_data1.csv', mode='a', newline='') as file:
+        writer = csv.writer(file)
+        if channel_names and label:
+            # If channel names and label are available, write header with these as columns
+            writer.writerow([timestamp] + [label] + list(sample))  # Optional: include the label
+        else:
+            # If channel names are not available, just write the sample data with timestamp
+            writer.writerow([timestamp] + list(sample))
+
+
+def collect_lsl_data(data):
+    try:
+        # Resolve the EEG stream
+        print("Looking for EEG stream...")
+        streams = resolve_stream('type', 'EEG')
+        inlet = StreamInlet(streams[0])
+
+        while True:
+            # Pull new sample
+            lsl_start_time = time.time()
+            sample, timestamp = inlet.pull_sample()
+            print("Timestamp:", timestamp, "Sample:", sample)
+
+            # Call write_data_to_csv to write the sample to CSV
+            write_data_to_csv(timestamp, sample)
+
+            lsl_end_time = time.time()
+            lsl_duration = lsl_end_time - lsl_start_time
+            print(f"LSL method duration: {lsl_duration:.4f} seconds")
+
+    except KeyboardInterrupt as e:
+        print("Ending program")
+        raise e
+
 def handle_eeg_data(data):
     # print("data", data)
     # start = time.time()
-    timestamp = datetime.fromtimestamp(data["info"]["startTime"] / 1000.0).strftime(
-        "%F %T.%f"
-    )[:-3]
+
+    timestamp = datetime.fromtimestamp(data["info"]["startTime"] / 1000.0).strftime("%F %T.%f")[:-3]
     channel_names = data["info"]["channelNames"]
     label = data["label"]
     data_by_channel = data["data"]
@@ -98,7 +136,7 @@ def handle_eeg_data(data):
         for j in range(len(channel_names)):
             row[channel_names[j]] = data_by_channel[j][i]
 
-        # live_plot_eeg_data(row)
+        live_plot_eeg_data(row)
         # Handling each value in values, you may need to adjust based on your actual requirements:
         datawriter.write_data_to_csv(data_type="EEG", data=row, label=label)
 
@@ -183,7 +221,7 @@ def signal_handler(sig, frame):
 def eeg():
     datawriter.check_directory()
     # Subscribe to EEG and accelerometer data
-    unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
+    unsubscribe_brainwaves = neurosity.brainwaves_raw(collect_lsl_data)
     unsubscribe_accelerometer = neurosity.accelerometer(handle_accelerometer_data)
     time.sleep(60)
     # Unsubscribe from the data
