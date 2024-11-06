@@ -240,7 +240,7 @@ def preprocess_person(directory_path: str, actions: Dict[str, Action], should_vi
         # If any data is missing, skip this iteration and move on to the next trial folder.
         if x is None or accel_data is None or action_data is None:
             continue
-        
+
         # Now safely check if x is empty
         if x.size == 0 or accel_data.empty or action_data.empty:
             continue  # Skip this iteration if any loaded data is empty
