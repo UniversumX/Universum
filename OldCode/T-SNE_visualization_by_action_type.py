@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 # Sample data
 trial = 1
 eeg_data_path = f"../DataCollection/data/103/1/1/"
-data = pd.read_csv(eeg_data_path +"eeg_data_raw.csv")  # replace with your data
+data = pd.read_csv(eeg_data_path +"eeg_data_raw.csv")
 labels = pd.read_csv(eeg_data_path +"action_data.csv")
 
 data['timestamp'] = pd.to_datetime(data['timestamp'])
 labels['timestamp'] = pd.to_datetime(labels['timestamp'])
 
-merged_data = pd.merge_asof(data, labels, on='timestamp', direction='backward')
+merged_data = pd.merge_asof(data, labels, on='timestamp', direction='forward')
 
 timestamps = merged_data['timestamp']       # Assuming a 'timestamp' column exists
 time_series_columns = merged_data.columns.difference(['timestamp', 'action_value'])  # Time-domain columns
