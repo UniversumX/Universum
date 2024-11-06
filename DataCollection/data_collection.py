@@ -44,7 +44,7 @@ datawriter = local_storage.DataWriter(sub)
 # Initialize live visualization aspects
 plt.ion()
 fig, axs = plt.subplots(8, 1, figsize=(10, 12), sharex=True)
-channels = ['CP3', 'C3', 'F5', 'PO3', 'PO4', 'F6', 'C4', 'CP4']
+channels = ["CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"]
 channel_data = {channel: [] for channel in channels}
 
 
@@ -73,7 +73,7 @@ def live_plot_eeg_data(row):
 
     for ax, channel in zip(axs, channels):
         ax.cla()
-        ax.plot(channel_data[channel], 'r')
+        ax.plot(channel_data[channel], "r")
         ax.set_title(channel)
         ax.set_ylim(-1, 1)
 
@@ -90,13 +90,14 @@ def handle_eeg_data(data):
     label = data["label"]
     data_by_channel = data["data"]
     sample_number = len(data_by_channel[0])
+    print(sample_number)
 
     for i in range(sample_number):
         row = dict()
         row["timestamp"] = timestamp
         for j in range(len(channel_names)):
             row[channel_names[j]] = data_by_channel[j][i]
-            
+
         live_plot_eeg_data(row)
         # Handling each value in values, you may need to adjust based on your actual requirements:
         datawriter.write_data_to_csv(data_type="EEG", data=row, label=label)

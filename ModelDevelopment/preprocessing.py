@@ -112,12 +112,18 @@ def get_data_from_directory(data_directory_path: str):
     eeg_file = os.path.join(data_directory_path, "eeg_data_raw.csv")
     accel_file = os.path.join(data_directory_path, "accelerometer_data.csv")
     action_file = os.path.join(data_directory_path, "action_data.csv")
-    
+
     # Check if all required files exist
-    if not os.path.exists(eeg_file) or not os.path.exists(accel_file) or not os.path.exists(action_file):
-        logger.warning(f"One or more CSV files are missing in directory: {data_directory_path}. Skipping this folder.")
+    if (
+        not os.path.exists(eeg_file)
+        or not os.path.exists(accel_file)
+        or not os.path.exists(action_file)
+    ):
+        logger.warning(
+            f"One or more CSV files are missing in directory: {data_directory_path}. Skipping this folder."
+        )
         return None, None, None  # Return None to indicate skipping
-    
+
     # Try to read the CSV files
     try:
         eeg_data = pd.read_csv(eeg_file)
@@ -126,7 +132,7 @@ def get_data_from_directory(data_directory_path: str):
     except Exception as e:
         logger.warning(f"Error reading CSV files in {data_directory_path}: {e}")
         return None, None, None
-    
+
     return eeg_data, accel_data, action_data
 
 
@@ -160,21 +166,25 @@ def whiten_data_with_pca(data: np.array):
     inverse_lambda = np.diag(1 / (eigenvalues + EPSILON))
     return np.sqrt(inverse_lambda) @ eigenvectors.T @ data
 
-def preprocess_person(directory_path: str, actions: Dict[str, Action], should_visualize=False):
+
+def preprocess_person(
+    directory_path: str, actions: Dict[str, Action], should_visualize=False
+):
     res = []
     items = os.listdir(directory_path)
     full_paths = [os.path.join(directory_path, item) for item in items]
     for full_path in full_paths:
         x, accel_data, action_data = preprocess(full_path, actions, should_visualize)
-        if not x or not accel_data or not action_data:
+        if x is None or accel_data is None or action_data is None:
             continue
         res.append([x, accel_data, action_data])
     return res
 
+
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
     Args:
-    - directory_path: The path to the directory containing the data for a specific trial. Ex: "../DataCollection/data/103/1/1/"
+    - directory_path: The path to the directory containing the data for a specific trial. Ex: "../DataCollection/data/103/"
     - actions: the actions that the user did
     - should_visualize: If we should visualize some plots (used for debugging)
 
@@ -198,8 +208,18 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     percent_overlap = 0.95
 
     eeg_data, accel_data, action_data = get_data_from_directory(directory_path)
-    if not eeg_data or not accel_data or not action_data:
+    if eeg_data is None or accel_data is None or action_data is None:
         return None, None, None
+
+    # Fix the action data so if there are multiple actions of the same type after aech other, it removes those rows
+    action_data = action_data.loc[
+        (abs(action_data["action_value"] - action_data["action_value"].shift(1)) > 0)
+    ].reset_index(drop=True)
+
+    # Get rid of the end collection action data
+    action_data = action_data[
+        action_data["action_value"] != actions["end_collection"].action_value
+    ]
 
     # Convert timestamp to time since last epoch (a float)
     eeg_data, accel_data, action_data = map(
@@ -245,7 +265,9 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     events = np.array(events)
 
     event_dict = {
-        action_name: action.action_value for (action_name, action) in actions.items()
+        action_name: action.action_value
+        for (action_name, action) in actions.items()
+        if actions["end_collection"].action_value != action.action_value
     }
 
     info = mne.create_info(
@@ -269,8 +291,8 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         # baseline=(None, 0),
         preload=True,
     )
-    x = epochs.get_data(copy=True)[:-1]  # the last event is end of data collection
-    y = epochs.events[:-1, -1]  # the last event of the data
+    x = epochs.get_data(copy=True)  # the last event is end of data collection
+    y = epochs.events[:-1]  # the last event of the data
     num_epochs, num_channels, num_samples = x.shape
     x = x.reshape(
         num_channels, num_epochs * num_samples
@@ -289,13 +311,6 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
 
     # whiten the data with PCA
     whitened_data = whiten_data_with_pca(x)
-
-    frequencies, times, stft_data = signal.stft(
-        x[0],
-        fs=sampling_frequency,
-        nperseg=window_size,
-        noverlap=window_size * percent_overlap,
-    )
 
     # STFT should be done per channel, per epoch, not mixed.
     x = whitened_data.reshape(num_channels, num_epochs, num_samples).transpose(1, 0, 2)
@@ -316,39 +331,71 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     top_index = int(np.ceil(x.shape[2] / ((sampling_frequency / 2) / cutoff_max)))
     x = x[:, :, :top_index, :]
 
+    # sweeping window to increase data
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
-    # stack the epochs together for PCA
-    if should_visualize:
-        plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
-
-    # Do PCA on the data in a feature extraction portion
-    # num_components = 32
-    # features = np.zeros((num_channels, num_components, num_samples))
+    # <<<<<<< HEAD
     #
-    # # do a spectogram of the data
-    # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-    # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-    # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-    # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
-    # print(x.shape)
-    # for channel in range(x.shape[0]):
-    #     # so this plots the spectogram, it should be:
-    #     plt.figure()
-    #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-    #     plt.title(f"Spectrogram of Channel {channel}")
-    #     plt.ylabel("Frequency * Epoch [Hz]")
-    #     plt.xlabel("Time [s]")
+    #     # # do a spectogram of the data
+    #     # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+    #     # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+    #     # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+    #     # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+    #     # print(x.shape)
+    #     # for channel in range(x.shape[0]):
+    #     #     # so this plots the spectogram, it should be:
+    #     #     plt.figure()
+    #     #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+    #     #     plt.title(f"Spectrogram of Channel {channel}")
+    #     #     plt.ylabel("Frequency * Epoch [Hz]")
+    #     #     plt.xlabel("Time [s]")
+    #     #     plt.show()
+    #     #
+    #     # features = PCA(n_components=2).fit_transform(stft_data.T)
+    #     # plt.scatter(features[:, 0], features[:, 1])
+    #     # plt.show()
+    # =======
+    #     window_size = 10
+    #     window_offset = 2
+    #     y = np.empty([num_epochs, num_channels, num_frequencies, 10])
+    #
+    #     i = 0
+    #     while i < x.shape[3] - window_size:
+    #         y = np.concatenate([y, x[:, :, :, i: i+window_size]], axis=3)
+    #         i += window_offset
+    #
+    #     # stack the epochs together for PCA
+    #     if should_visualize:
+    #         plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
+    #
+    #     # Do PCA on the data in a feature extraction portion
+    #     num_components = 32
+    #     atures = np.zeros((num_channels, num_components, num_samples))
+    #
+    #     # do a spectogram of the data
+    #     # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+    #     # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+    #     # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+    #     # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+    #     print(x.shape)
+    #     for channel in range(x.shape[0]):
+    #         # so this plots the spectogram, it should be:
+    #         plt.figure()
+    #         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+    #         plt.title(f"Spectrogram of Channel {channel}")
+    #         plt.ylabel("Frequency * Epoch [Hz]")
+    #         plt.xlabel("Time [s]")
+    #         plt.show()
+    # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
+    #
+    #     features = PCA(n_components=2).fit_transform(stft_data.T)
+    #
+    #     plt.scatter(features[:, 0], features[:, 1])
     #     plt.show()
     #
-    # features = PCA(n_components=2).fit_transform(stft_data.T)
-
-    # plt.scatter(features[:, 0], features[:, 1])
-    # plt.show()
-
-    # ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
-    # ica.fit(whitened_raw)
-    # ica.plot_sources(whitened_raw, show_scrollbars=False)
-    # plt.show()
+    #     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
+    #     ica.fit(whitened_raw)
+    #     ica.plot_sources(whitened_raw, show_scrollbars=False)
+    #     plt.show()
     #
     # def print_relative_importance_of_ICA_features(ica):
     #     for i, component in enumerate(ica.mixing_matrix_):
@@ -363,12 +410,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     #
     # sources = ica.get_sources(whitened_raw).get_data()
     # first_component_signal = sources[0, :]
-
-    # print(x.shape)
-    # print(accel_data.shape)
-    # print(action_data.shape)
-
-    return x, accel_data, action_data
+    return x, accel_data, action_data["action_value"]
 
 
 if __name__ == "__main__":
@@ -404,9 +446,6 @@ if __name__ == "__main__":
     }
 
     # Define the data paths
-
-
-
     # trial_number = 1
     # subject_id = 103
     # visit_number = 1
@@ -416,7 +455,7 @@ if __name__ == "__main__":
     #     should_visualize=False,
     # )
     # print("Eeg data shape:", eeg_data.shape)
-    subject_id = 103
+    subject_id = 105
     visit_number = 1
     res = preprocess_person(
         f"../DataCollection/data/{subject_id}/{visit_number}/",
@@ -425,9 +464,7 @@ if __name__ == "__main__":
     )
     for eeg_data, accel_data, action_data in res:
         print("Eeg data shape:", eeg_data.shape)
-
-
-
+        print(action_data)
 
 
 # model = NMF(n_components=n_components, init="random", random_state=0)
