@@ -98,8 +98,11 @@ def time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data):
 def get_data_from_visit(subject_id, trial_number, visit_number):
     # Load data as CSV
 
+    # data_directory_path = (
+    #     f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
+    # )
     data_directory_path = (
-        f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
+        f"../DataCollection/data/103/4/"
     )
 
     eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
@@ -256,11 +259,30 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     ch_names = eeg_data.columns[1:].tolist()
     ch_types = ["eeg"] * len(ch_names)
 
-    events = []
-    for index, row in action_data.iterrows():
-        sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
-        action_value = int(row["action_value"])
-        events.append([sample, 0, action_value])
+### TODO:
+# Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
+# Create events from action_data
+# events = []
+# for index, row in action_data.iterrows():
+#     sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+#     action_value = int(row["action_value"])
+#     events.append([sample, 0, action_value])
+# #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
+
+
+events = []
+eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
+action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
+last_eeg_timestamp = eeg_data["timestamp"].max()
+threshold = pd.Timedelta(seconds=0.1)
+
+for index, row in action_data.iterrows():
+    sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+    action_value = int(row["action_value"])
+    # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
+    if row["timestamp"] > last_eeg_timestamp + threshold:
+        print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
+    events.append([sample, 0, action_value])
 
     events = np.array(events)
 
