@@ -291,48 +291,49 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         # baseline=(None, 0),
         preload=True,
     )
+    # TODO: Move this to extract features function
     x = epochs.get_data(copy=True)  # the last event is end of data collection
-    y = epochs.events[:-1]  # the last event of the data
-    num_epochs, num_channels, num_samples = x.shape
-    x = x.reshape(
-        num_channels, num_epochs * num_samples
-    )  # stack all of the epochs together for PCA
-
-    if should_visualize:
-        mne.viz.plot_events(events, sfreq=sampling_frequency, first_samp=0)
-        plt.show()
-        epochs.plot(events=events, event_id=event_dict)
-        # Plot the epochs as an image map
-        epochs.plot_image(picks="eeg")
-        fig = raw.compute_psd(tmax=np.inf, fmax=sampling_frequency // 2).plot(
-            average=False, amplitude=False, picks="data", exclude="bads"
-        )
-        plt.show()
-
+    # y = epochs.events[:-1]  # the last event of the data
+    # num_epochs, num_channels, num_samples = x.shape
+    # x = x.reshape(
+    #     num_channels, num_epochs * num_samples
+    # )  # stack all of the epochs together for PCA
+    #
+    # if should_visualize:
+    #     mne.viz.plot_events(events, sfreq=sampling_frequency, first_samp=0)
+    #     plt.show()
+    #     epochs.plot(events=events, event_id=event_dict)
+    #     # Plot the epochs as an image map
+    #     epochs.plot_image(picks="eeg")
+    #     fig = raw.compute_psd(tmax=np.inf, fmax=sampling_frequency // 2).plot(
+    #         average=False, amplitude=False, picks="data", exclude="bads"
+    #     )
+    #     plt.show()
+    #
     # whiten the data with PCA
-    whitened_data = whiten_data_with_pca(x)
-
-    # STFT should be done per channel, per epoch, not mixed.
-    x = whitened_data.reshape(num_channels, num_epochs, num_samples).transpose(1, 0, 2)
-
-    # Run stft on the data
-    x = np.apply_along_axis(
-        lambda x: signal.stft(
-            x,
-            fs=sampling_frequency,
-            nperseg=window_size,
-            noverlap=window_size * percent_overlap,
-        )[2],
-        2,
-        x,
-    )
+    # whitened_data = whiten_data_with_pca(x)
+    #
+    # # STFT should be done per channel, per epoch, not mixed.
+    # x = whitened_data.reshape(num_channels, num_epochs, num_samples).transpose(1, 0, 2)
+    #
+    # # Run stft on the data
+    # x = np.apply_along_axis(
+    #     lambda x: signal.stft(
+    #         x,
+    #         fs=sampling_frequency,
+    #         nperseg=window_size,
+    #         noverlap=window_size * percent_overlap,
+    #     )[2],
+    #     2,
+    #     x,
+    # )
 
     # get rid of frequencies above cutoff_max frequency
-    top_index = int(np.ceil(x.shape[2] / ((sampling_frequency / 2) / cutoff_max)))
-    x = x[:, :, :top_index, :]
-
-    # sweeping window to increase data
-    num_epochs, num_channels, num_frequencies, num_samples = x.shape
+    # top_index = int(np.ceil(x.shape[2] / ((sampling_frequency / 2) / cutoff_max)))
+    # x = x[:, :, :top_index, :]
+    #
+    # # sweeping window to increase data
+    # num_epochs, num_channels, num_frequencies, num_samples = x.shape
     # <<<<<<< HEAD
     #
     #     # # do a spectogram of the data
