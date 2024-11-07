@@ -180,6 +180,21 @@ def preprocess_person(
         res.append([x, accel_data, action_data])
     return res
 
+def feature_extract(x):
+    num_epochs, num_channels, num_frequencies, num_samples = x.shape
+
+    window_size = 10
+    window_offset = 1
+    y = []
+
+    i = 0
+    while i <= num_samples - window_size:
+        y.append(x[:, :, :, i: i+window_size])
+        i += window_offset
+    y = np.stack(y, axis=4)
+    
+    print("shape:", y.shape)
+    print("dimensions: ", num_epochs, num_channels, num_frequencies, num_samples)
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
@@ -291,6 +306,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         # baseline=(None, 0),
         preload=True,
     )
+    # TODO: Move this to extract features function
     x = epochs.get_data(copy=True)  # the last event is end of data collection
     y = epochs.events[:-1]  # the last event of the data
     num_epochs, num_channels, num_samples = x.shape
@@ -326,7 +342,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         2,
         x,
     )
-
+    
     # get rid of frequencies above cutoff_max frequency
     top_index = int(np.ceil(x.shape[2] / ((sampling_frequency / 2) / cutoff_max)))
     x = x[:, :, :top_index, :]
@@ -334,82 +350,76 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     # sweeping window to increase data
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
     # <<<<<<< HEAD
-    #
-    #     # # do a spectogram of the data
-    #     # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-    #     # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-    #     # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-    #     # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
-    #     # print(x.shape)
-    #     # for channel in range(x.shape[0]):
-    #     #     # so this plots the spectogram, it should be:
-    #     #     plt.figure()
-    #     #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-    #     #     plt.title(f"Spectrogram of Channel {channel}")
-    #     #     plt.ylabel("Frequency * Epoch [Hz]")
-    #     #     plt.xlabel("Time [s]")
-    #     #     plt.show()
-    #     #
-    #     # features = PCA(n_components=2).fit_transform(stft_data.T)
-    #     # plt.scatter(features[:, 0], features[:, 1])
-    #     # plt.show()
+
+        # # do a spectogram of the data
+        # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+        # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+        # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+        # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+        # print(x.shape)
+        # for channel in range(x.shape[0]):
+        #     # so this plots the spectogram, it should be:
+        #     plt.figure()
+        #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+        #     plt.title(f"Spectrogram of Channel {channel}")
+        #     plt.ylabel("Frequency * Epoch [Hz]")
+        #     plt.xlabel("Time [s]")
+        #     plt.show()
+        #
+        # features = PCA(n_components=2).fit_transform(stft_data.T)
+        # plt.scatter(features[:, 0], features[:, 1])
+        # plt.show()
     # =======
-    #     window_size = 10
-    #     window_offset = 2
-    #     y = np.empty([num_epochs, num_channels, num_frequencies, 10])
-    #
-    #     i = 0
-    #     while i < x.shape[3] - window_size:
-    #         y = np.concatenate([y, x[:, :, :, i: i+window_size]], axis=3)
-    #         i += window_offset
-    #
-    #     # stack the epochs together for PCA
-    #     if should_visualize:
-    #         plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
-    #
-    #     # Do PCA on the data in a feature extraction portion
-    #     num_components = 32
-    #     atures = np.zeros((num_channels, num_components, num_samples))
-    #
-    #     # do a spectogram of the data
-    #     # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-    #     # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-    #     # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-    #     # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
-    #     print(x.shape)
-    #     for channel in range(x.shape[0]):
-    #         # so this plots the spectogram, it should be:
-    #         plt.figure()
-    #         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-    #         plt.title(f"Spectrogram of Channel {channel}")
-    #         plt.ylabel("Frequency * Epoch [Hz]")
-    #         plt.xlabel("Time [s]")
-    #         plt.show()
-    # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
-    #
-    #     features = PCA(n_components=2).fit_transform(stft_data.T)
-    #
-    #     plt.scatter(features[:, 0], features[:, 1])
-    #     plt.show()
-    #
-    #     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
-    #     ica.fit(whitened_raw)
-    #     ica.plot_sources(whitened_raw, show_scrollbars=False)
-    #     plt.show()
-    #
-    # def print_relative_importance_of_ICA_features(ica):
-    #     for i, component in enumerate(ica.mixing_matrix_):
-    #         explained_var_ratio = ica.get_explained_variance_ratio(
-    #             whitened_raw, components=[i], ch_type="eeg"
-    #         )
-    #         print(
-    #             f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
-    #         )
-    #
-    # print_relative_importance_of_ICA_features(ica)
-    #
-    # sources = ica.get_sources(whitened_raw).get_data()
-    # first_component_signal = sources[0, :]
+
+    feature_extract(x)
+
+    # stack the epochs together for PCA
+    if should_visualize:
+        plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
+
+    # Do PCA on the data in a feature extraction portion
+    num_components = 32
+    atures = np.zeros((num_channels, num_components, num_samples))
+
+    # do a spectogram of the data
+    # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+    # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+    # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+    # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+    print(x.shape)
+#     for channel in range(x.shape[0]):
+#         # so this plots the spectogram, it should be:
+#         plt.figure()
+#         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+#         plt.title(f"Spectrogram of Channel {channel}")
+#         plt.ylabel("Frequency * Epoch [Hz]")
+#         plt.xlabel("Time [s]")
+#         plt.show()
+# # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
+
+#     features = PCA(n_components=2).fit_transform(stft_data.T)
+
+#     plt.scatter(features[:, 0], features[:, 1])
+#     plt.show()
+
+#     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
+#     ica.fit(whitened_raw)
+#     ica.plot_sources(whitened_raw, show_scrollbars=False)
+#     plt.show()
+
+#     def print_relative_importance_of_ICA_features(ica):
+#         for i, component in enumerate(ica.mixing_matrix_):
+#             explained_var_ratio = ica.get_explained_variance_ratio(
+#                 whitened_raw, components=[i], ch_type="eeg"
+#             )
+#             print(
+#                 f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
+#             )
+
+#     print_relative_importance_of_ICA_features(ica)
+
+#     sources = ica.get_sources(whitened_raw).get_data()
+#     first_component_signal = sources[0, :]
     return x, accel_data, action_data["action_value"]
 
 
