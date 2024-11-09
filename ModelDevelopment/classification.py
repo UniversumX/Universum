@@ -6,9 +6,12 @@ from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
-from preprocessing import preprocess  # Import your preprocessing function
+from preprocessing import preprocess_person  # Import your preprocessing function
 from scipy.stats import mode
 from sklearn.decomposition import PCA
+from typing import Dict
+
+from dataclasses import dataclass
 
 def get_frequency_band_indices(frequencies, band_min, band_max):
     """
@@ -54,10 +57,14 @@ def extract_features(eeg_data, channels, frequencies):
 
 # Example of usage in load_data_and_labels
 # Assuming `frequencies` is an array of frequency values corresponding to the third dimension of eeg_data
-def load_data_and_labels(subject_id, visit_number, trial_number, actions):
+def load_data_and_labels(subject_id, visit_number, actions):
     # Load preprocessed data
-    directory_path = f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
-    eeg_data, accel_data, action_data = preprocess(directory_path, actions, should_visualize=False)
+    directory_path = f"../DataCollection/data/{subject_id}/{visit_number}/"
+    eeg_data, accel_data, action_data = preprocess_person(
+        directory_path,
+        actions,
+        should_visualize=False,
+    )
 
     # Print the number of epochs in eeg_data
     num_epochs = eeg_data.shape[0]
@@ -86,6 +93,7 @@ def load_data_and_labels(subject_id, visit_number, trial_number, actions):
     
     return X, y
 
+    '''
 def load_multiple_trials(subject_id, visit_number, trial_numbers, actions):
     """
     Loads and preprocesses the EEG data from multiple trials and aggregates them.
@@ -115,11 +123,12 @@ def load_multiple_trials(subject_id, visit_number, trial_numbers, actions):
     X_combined = np.vstack(all_X)  # Stack vertically
     y_combined = np.concatenate(all_y)  # Concatenate labels
 
-    return X_combined, y_combined
+    return X_combined, 
+    '''
 
-def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, actions):
+def classify_eeg_data(subject_id, visit_number, actions):
     # Load and preprocess data from multiple trials
-    X, y = load_multiple_trials(subject_id, visit_number, trial_numbers, actions)
+    X, y = load_data_and_labels(subject_id, visit_number, actions)
 
     # Standardize the features
     scaler = StandardScaler()
@@ -154,10 +163,6 @@ def classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, a
         cluster = np.where(y_train_pred == i)[0]
         result = mode(y_train[cluster])
 
-        if len(cluster) > 0:
-            mapped_label = mode(y_train[cluster])[0]
-            mapping[i] = mapped_label
-
     # Apply the mapping to predicted values
     y_train_mapped = np.array([mapping[cluster] for cluster in y_train_pred])
     y_test_mapped = np.array([mapping[cluster] for cluster in y_test_pred])
@@ -186,6 +191,5 @@ if __name__ == "__main__":
     # Example parameters (replace with actual values)
     subject_id = "105"
     visit_number = 1
-    trial_numbers = [1]  # Using multiple trials
 
-    classify_eeg_data_multiple_trials(subject_id, visit_number, trial_numbers, actions)
+    classify_eeg_data(subject_id, visit_number, actions)
