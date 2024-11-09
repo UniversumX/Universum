@@ -3,7 +3,7 @@ import time, os
 from data_collection import *
 from tkinter import messagebox
 from datetime import datetime
-from actions import *
+from DataCollection.app import push_action_data
 import pandas as pd
 import pygame
 
@@ -13,7 +13,7 @@ def get_formatted_timestamp():
 
 
 class TimerApp:
-    def __init__(self, root, data_path, default_time=60):
+    def __init__(self, root, data_path, default_time=60, id=None, visit=None, trial=None):
         self.root = root
         self.root.title("Timer App")
 
@@ -56,6 +56,9 @@ class TimerApp:
         self.procedure_index = 0 # first procedure
 
         self.data_path = data_path
+        self.id = id
+        self.visit = visit
+        self.trial = trial
 
         self.threads = []
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -103,6 +106,16 @@ class TimerApp:
 
     def save_action_data(self):
         self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
+
+        for _, row in self.action_data.iterrows():
+            data = (
+                row['timestamp'],
+                row['action_value'],
+                self.id,
+                self.visit,
+                self.trial
+            )
+            push_action_data(data)
 
 
     def reset_timer(self):
@@ -225,7 +238,7 @@ class InfoApp:
         self.root.destroy()  # close the current window
         self.root = tk.Tk()  # create another Tk instance
         data_path = os.path.join("data", self.id, self.visit, self.trial)
-        self.app = TimerApp(self.root, data_path, int(self.default_time))  # create Demo2 window
+        self.app = TimerApp(self.root, data_path, int(self.default_time), self.id, self.visit, self.trial)  # create Demo2 window
         self.root.mainloop()
 
     def validate_submit(self):

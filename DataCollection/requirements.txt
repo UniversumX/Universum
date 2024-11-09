@@ -4,3 +4,7 @@ neurosity==2.2.0
 pandas==2.2.2
 python-dotenv==1.0.1
 tk
+loguru
+sqlalchemy
+psycopg2
+pandas

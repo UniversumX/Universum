@@ -10,6 +10,7 @@ from datetime import datetime
 import csv
 from pathlib import Path
 import matplotlib.pyplot as plt
+from app import push_accelerometer_data, push_eeg_data
 
 # from Modules import influx_data
 from modules import local_storage, subject

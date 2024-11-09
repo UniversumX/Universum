@@ -7,6 +7,8 @@ import shutil
 import pandas as pd
 import time
 from datetime import datetime
+from DataCollection.app import (push_accelerometer_data,
+                                push_eeg_data)
 
 
 class DataWriter:
@@ -63,6 +65,23 @@ class DataWriter:
             if not file_exists:
                 writer.writeheader()
             writer.writerow(data)
+            
+        db_data = (
+            data["timestamp"],
+            data["CP3"],
+            data["C3"],
+            data["F5"],
+            data["PO3"],
+            data["PO4"],
+            data["F6"],
+            data["C4"],
+            data["CP4"],
+            _subject.get_subject_id(),
+            _subject.get_visit(),
+            _trial
+        )
+        push_eeg_data(db_data)
+        print("Data pushed to database.")
 
     def write_accelerometer_data(self, data: dict, filename: str, file_exists: bool):
 
@@ -83,6 +102,25 @@ class DataWriter:
             if not file_exists:
                 writer.writeheader()
             writer.writerow(data)
+        
+        db_data = (
+            data["timestamp"],
+            data["device_id"],
+            data["x"],
+            data["y"],
+            data["z"],
+            data["pitch"],
+            data["roll"],
+            data["acceleration"],
+            data["inclination"],
+            data["patient_id"],
+            data["visit_number"],
+            _subject.get_subject_id(),
+            _subject.get_visit(),
+            _trial
+        )
+        push_accelerometer_data(db_data)
+        print("Data pushed to database.")
 
     def write_subject_info(self):
         data = {
