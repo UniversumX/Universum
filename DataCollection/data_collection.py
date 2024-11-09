@@ -85,7 +85,7 @@ def live_plot_eeg_data(row):
 
 
 def write_data_to_csv(timestamp, sample, channel_names=None, label=None):
-    with open('data/106/1/2/eeg_data3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               .csv', mode='a', newline='') as file:
+    with open('eeg_data1.csv', mode='a', newline='') as file:
         writer = csv.writer(file)
         if channel_names and label:
             # If channel names and label are available, write header with these as columns
@@ -113,8 +113,8 @@ def collect_lsl_data(data):
 
             lsl_end_time = time.time()
             lsl_duration = lsl_end_time - lsl_start_time
-            # print(f"LSL method duration: {lsl_duration:.4f} seconds")
-            time.sleep(0.01)
+            print(f"LSL method duration: {lsl_duration:.4f} seconds")
+
     except KeyboardInterrupt as e:
         print("Ending program")
         raise e
@@ -122,9 +122,8 @@ def collect_lsl_data(data):
 def handle_eeg_data(data):
     # print("data", data)
     # start = time.time()
-    timestamp = datetime.fromtimestamp(data["info"]["startTime"] / 1000.0).strftime(
-        "%F %T.%f"
-    )[:-3]
+
+    timestamp = datetime.fromtimestamp(data["info"]["startTime"] / 1000.0).strftime("%F %T.%f")[:-3]
     channel_names = data["info"]["channelNames"]
     label = data["label"]
     data_by_channel = data["data"]
