@@ -89,7 +89,7 @@ class TimerApp:
         self.stop_button.config(state="disabled")
         self.reset_button.config(state="normal")
         self.discard_button.config(state="normal")
-
+        print("action data generated")
         self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
 
     def reset_timer(self):
@@ -196,7 +196,7 @@ class InfoApp:
     def new_window(self):
         self.root.destroy()  # close the current window
         self.root = tk.Tk()  # create another Tk instance
-        data_path = os.path.join("data", self.id, self.visit, self.trial)
+        data_path = os.path.join("data", self.id, (self.visit), (self.trial)) # error, should cast to int
         self.app = TimerApp(self.root, data_path, int(self.default_time))  # create Demo2 window
         self.root.mainloop()
 
