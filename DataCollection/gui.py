@@ -66,8 +66,19 @@ class TimerApp:
     def stop(self):
         self.unsubscribe_brainwaves()
         self.unsubscribe_accelerometer()
+        
+        self.is_running = False
+        self.start_button.config(state="normal")
+        self.info_button.config(state="normal")
+        self.stop_button.config(state="disabled")
+        self.reset_button.config(state="normal")
+        self.discard_button.config(state="normal")
+        print("action data generated")
+        self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
 
     def start_timer(self):
+        self.current_action_value = -1
+        self.procedure_index = 0
         if self.time_remaining == 0:
             self.time_remaining = self.default_time
             self.timer_label.config(text=f"Time Remaining: {self.default_time}")
@@ -83,14 +94,6 @@ class TimerApp:
 
     def stop_timer(self):
         self.stop()
-        self.is_running = False
-        self.start_button.config(state="normal")
-        self.info_button.config(state="normal")
-        self.stop_button.config(state="disabled")
-        self.reset_button.config(state="normal")
-        self.discard_button.config(state="normal")
-        print("action data generated")
-        self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
 
     def reset_timer(self):
         if self.time_remaining != 0:
@@ -119,12 +122,6 @@ class TimerApp:
             if self.time_remaining == 0:
                 self.stop()
                 trial_progress()
-                self.is_running = False
-                self.start_button.config(state="normal")
-                self.info_button.config(state="normal")
-                self.stop_button.config(state="disabled")
-                self.reset_button.config(state="normal")
-                self.discard_button.config(state="disabled")
 
             timestamp = self.default_time - self.time_remaining
             if self.procedure_index <= len(procedures) and timestamp >= procedures[self.procedure_index][0]:
