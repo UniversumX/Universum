@@ -58,7 +58,7 @@ class TimerApp:
 
     def collect(self):
         datawriter.check_directory()
-        self.unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data)
+        self.unsubscribe_brainwaves = neurosity.brainwaves_raw(handle_eeg_data) #replace with collect_lsl_data
         self.unsubscribe_accelerometer = neurosity.accelerometer(
             handle_accelerometer_data
         )
@@ -77,8 +77,6 @@ class TimerApp:
         self.action_data.to_csv(os.path.join(self.data_path, "action_data.csv"), index=False)
 
     def start_timer(self):
-        self.current_action_value = -1
-        self.procedure_index = 0
         if self.time_remaining == 0:
             self.time_remaining = self.default_time
             self.timer_label.config(text=f"Time Remaining: {self.default_time}")

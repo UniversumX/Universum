@@ -36,6 +36,8 @@ neurosity_email = os.getenv("NEUROSITY_EMAIL")
 neurosity_password = os.getenv("NEUROSITY_PASSWORD")
 neurosity_device_id = os.getenv("NEUROSITY_DEVICE_ID")
 
+collecting = True
+
 
 neurosity = NeurositySDK({"device_id": neurosity_device_id})
 
@@ -94,7 +96,8 @@ def write_data_to_csv(timestamp, sample, channel_names=None, label=None):
             # If channel names are not available, just write the sample data with timestamp
             writer.writerow([timestamp] + list(sample))
 
-
+import threading
+stop_event = threading.Event()
 def collect_lsl_data(data):
     try:
         # Resolve the EEG stream
@@ -102,7 +105,7 @@ def collect_lsl_data(data):
         streams = resolve_stream('type', 'EEG')
         inlet = StreamInlet(streams[0])
 
-        while True:
+        while not stop_event.is_set():
             # Pull new sample
             lsl_start_time = time.time()
             sample, timestamp = inlet.pull_sample()
