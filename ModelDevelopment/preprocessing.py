@@ -98,11 +98,8 @@ def time_align_accel_data_by_linearly_interpolating(accel_data, eeg_data):
 def get_data_from_visit(subject_id, trial_number, visit_number):
     # Load data as CSV
 
-    # data_directory_path = (
-    #     f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
-    # )
     data_directory_path = (
-        f"../DataCollection/data/103/4/"
+        f"../DataCollection/data{subject_id}/{visit_number}/{trial_number}/"
     )
 
     eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
