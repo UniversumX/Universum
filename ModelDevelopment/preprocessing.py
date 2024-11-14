@@ -374,8 +374,8 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     feature_extract(x)
 
     # stack the epochs together for PCA
-    if should_visualize:
-        plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
+    # if should_visualize:
+    #     plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
 
     # Do PCA on the data in a feature extraction portion
     num_components = 32

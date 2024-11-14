@@ -90,7 +90,7 @@ class DataWriter:
             "subject_id": self._subject.get_subject_id(),
             "visit": self._subject.get_visit(),
         }
-        dir = "data/subject_info.csv"
+        dir = "DataCollection/data/subject_info.csv"
         file_exists = Path(dir).exists()
         file = open(dir, mode="a", newline="")
         fieldnames = ["time", "subject_id", "visit"]
@@ -102,12 +102,10 @@ class DataWriter:
             writer.writerow(data)
 
     def check_subject_info(self, data):
-        df = pd.read_csv("data/subject_info.csv")
+        df = pd.read_csv("DataCollection/data/subject_info.csv")
         for index, row in df.iterrows():
             print(row)
-            if int(row["subject_id"]) == int(data["subject_id"]) and int(
-                row["visit"]
-            ) == int(data["visit"]):
+            if row["subject_id"] == data["subject_id"] and int(row["visit"]) == int(data["visit"]):
                 return True
         return False
 
