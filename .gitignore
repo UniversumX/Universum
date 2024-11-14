@@ -11,5 +11,5 @@ node_modules/
 universum/
 poetry.lock
 pyproject.toml
-.env
 neurotech_environment/
+.venv

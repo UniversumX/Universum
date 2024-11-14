@@ -99,7 +99,7 @@ def get_data_from_visit(subject_id, trial_number, visit_number):
     # Load data as CSV
 
     data_directory_path = (
-        f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
+        f"../DataCollection/data{subject_id}/{visit_number}/{trial_number}/"
     )
 
     eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
@@ -183,18 +183,64 @@ def preprocess_person(
 def feature_extract(x):
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
 
+    # set window size and offset
     window_size = 10
     window_offset = 1
     y = []
 
+    # sweeping window
     i = 0
     while i <= num_samples - window_size:
         y.append(x[:, :, :, i: i+window_size])
         i += window_offset
     y = np.stack(y, axis=4)
     
-    print("shape:", y.shape)
-    print("dimensions: ", num_epochs, num_channels, num_frequencies, num_samples)
+    print("windowed dimensions:", y.shape) # num_epochs, num_channels, num_frequencies, window_size, num_window
+    print("original dimensions: ", x.shape)
+
+    a = num_frequencies * window_size # reused variable
+    eigvecs = []
+    eigvals = []
+    for j in range(y.shape[0]):
+        vecs_epoch = []
+        vals_epoch = []
+        for k in range(y.shape[1]):
+            y_1 = y[j][k]
+            y_flattened = y_1.reshape(-1, y_1.shape[2]).transpose()
+
+            # PCA
+            y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+            cov = np.cov(y_standardized, rowvar=False)
+            eigval, eigvec = np.linalg.eigh(cov)
+            sorted_indices= np.argsort(eigval)[::-1]
+            eigval = eigval[sorted_indices]
+            eigvec = eigvec[:, sorted_indices]
+
+            vecs_epoch.append(eigvec)
+            vals_epoch.append(eigval)
+        #print(vals_epoch.shape)
+        #print(eigvals.shape)
+        eigvecs.append(vecs_epoch)
+        eigvals.append(vals_epoch)
+    
+    eigvecs = np.array(eigvecs)
+    eigvals = np.array(eigvals)
+
+    ''' #graph eigenvalue
+    graph_val = eigvals[0][3]
+    plt.bar(np.arange(len(graph_val)), graph_val)
+
+    plt.xlabel("Eigenvalues")
+    plt.ylabel("Weight")
+    plt.title("PCA chart")
+
+    plt.show()
+    '''
+
+    #TODO: project data onto eigenspace
+    
+    # print("eigenvectors:", eigvecs.shape)
+    # print("eigenvalues:", eigvals.shape)
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
@@ -271,11 +317,30 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     ch_names = eeg_data.columns[1:].tolist()
     ch_types = ["eeg"] * len(ch_names)
 
-    events = []
-    for index, row in action_data.iterrows():
-        sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
-        action_value = int(row["action_value"])
-        events.append([sample, 0, action_value])
+### TODO:
+# Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
+# Create events from action_data
+# events = []
+# for index, row in action_data.iterrows():
+#     sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+#     action_value = int(row["action_value"])
+#     events.append([sample, 0, action_value])
+# #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
+
+
+events = []
+eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
+action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
+last_eeg_timestamp = eeg_data["timestamp"].max()
+threshold = pd.Timedelta(seconds=0.1)
+
+for index, row in action_data.iterrows():
+    sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+    action_value = int(row["action_value"])
+    # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
+    if row["timestamp"] > last_eeg_timestamp + threshold:
+        print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
+    events.append([sample, 0, action_value])
 
     events = np.array(events)
 
@@ -374,8 +439,8 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     feature_extract(x)
 
     # stack the epochs together for PCA
-    # if should_visualize:
-    #     plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
+    if should_visualize:
+        plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
 
     # Do PCA on the data in a feature extraction portion
     num_components = 32
