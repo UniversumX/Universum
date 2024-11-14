@@ -32,3 +32,32 @@ Employ feature selection and digital signal processing techniques to focus on th
 Use ensemble learning techniques to combine predictions from multiple machine learning models, enhancing overall prediction accuracy.
 The Universum Project team is confident in these strategies' ability to effectively address limited data challenges, leading to the successful development of a reliable, real-time model for human lumbar tilt perception.
 
+
+
+## Setting Up the Development Environment
+
+Follow these steps to set up your Python environment and install necessary dependencies:
+
+1. **Clone the Repository** (if you haven’t already):
+   ```bash
+   git clone https://github.com/UniversumX/Universum.git
+   cd Universum
+
+2. Create a Virtual Environment: Create a virtual environment named neurotech_environment (or any preferred name).
+    python -m venv neurotech_environment
+
+3. Activate the Virtual Environment:
+For macOS/Linux:
+source neurotech_environment/bin/activate
+
+For Windows:
+.\neurotech_environment\Scripts\activate
+
+4. Install Required Dependencies: Install the packages listed in requirements.txt to set up the project dependencies:
+pip install -r DataCollection/requirements.txt
+
+5. Run Tests: After setting up the environment, you can run the tests to ensure everything is working correctly:
+pytest tests/
+
+6. Deactivate the Environment (Optional): When you’re done working on the project, you can deactivate the virtual environment by running:
+deactivate

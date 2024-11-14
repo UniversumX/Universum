@@ -1,4 +1,4 @@
-name: Python File Check
+name: CI for Universum Project
 
 on:
   push:
@@ -17,11 +17,40 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.x'
+        python-version: '3.11'
 
-    - name: Check Python files
+    - name: Cache dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
       run: |
-        for file in $(find . -name '*.py'); do
-            echo "Checking $file"
-            python $file
-        done
+        python -m pip install --upgrade pip
+        pip install -r DataCollection/requirements.txt
+        pip install pytest  # Installing pytest for running tests
+
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 DataCollection ModelDevelopment --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 DataCollection ModelDevelopment --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run Unit Tests with Pytest
+      run: |
+        pytest tests/ --maxfail=5 --disable-warnings
+
+    - name: Run Preprocessing Script
+      run: |
+        python ModelDevelopment/preprocessing.py
+
+    - name: Run Data Collection Script
+      run: |
+        python DataCollection/data_collection.py
+
+    - name: Run Data Visualization Script
+      run: |
+        python DataCollection/data_visualization.py
