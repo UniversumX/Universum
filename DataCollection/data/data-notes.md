@@ -16,3 +16,5 @@ Run 10 -
 103 -> running the procedure left, right, left, right...
 104 -> same as 103, but motor imagery
 105 -> same as 103 but owen instead of matt
+108 -> same as 103 but with Bernie
+110 -> same as 103 but with Jack
