@@ -7,8 +7,7 @@ import shutil
 import pandas as pd
 import time
 from datetime import datetime
-from DataCollection.app import (push_accelerometer_data,
-                                push_eeg_data)
+from app import push_accelerometer_data, push_eeg_data
 
 
 class DataWriter:

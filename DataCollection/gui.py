@@ -3,7 +3,7 @@ import time, os
 from data_collection import *
 from tkinter import messagebox
 from datetime import datetime
-from DataCollection.app import push_action_data
+from app import push_action_data
 import pandas as pd
 import pygame
 
