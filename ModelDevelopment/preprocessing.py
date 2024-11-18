@@ -140,7 +140,7 @@ def convert_timestamp_to_time_since_last_epoch(df):
     """
     Converts the timestamp to time since the last epoch
     """
-    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype(int) / 10**9
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype('int64') / 10**9
     return df
 
 
@@ -328,19 +328,19 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
 # #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
 
 
-events = []
-eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
-action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
-last_eeg_timestamp = eeg_data["timestamp"].max()
-threshold = pd.Timedelta(seconds=0.1)
+    events = []
+    eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
+    action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
+    last_eeg_timestamp = eeg_data["timestamp"].max()
+    threshold = pd.Timedelta(seconds=0.1)
 
-for index, row in action_data.iterrows():
-    sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
-    action_value = int(row["action_value"])
-    # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
-    if row["timestamp"] > last_eeg_timestamp + threshold:
-        print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
-    events.append([sample, 0, action_value])
+    for index, row in action_data.iterrows():
+        sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+        action_value = int(row["action_value"])
+        # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
+        if row["timestamp"] > last_eeg_timestamp + threshold:
+            print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
+        events.append([sample, 0, action_value])
 
     events = np.array(events)
 
