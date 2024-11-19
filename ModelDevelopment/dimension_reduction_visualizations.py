@@ -20,7 +20,8 @@ def processresults(data): #used in ploting functions
 
     #get epoch information
     epoch_indices = np.repeat(np.arange(data.shape[0]), data.shape[1] * data.shape[3]) #possible source of error, flattening may not arrange epochs like this
-    print(epoch_indices.shape)
+    epoch_indices = epoch_indices % 4 + 1
+    print(epoch_indices)
     return fdata, epoch_indices
     
 # T-SNE
@@ -35,9 +36,9 @@ def plotWithTSNE(data_path, actions):
     plt.scatter(
         tsne_embedding[:, 0], tsne_embedding[:, 1], c=epoch_indices, cmap="viridis", s=10
     )
-    plt.colorbar(label="Epoch")
+    plt.colorbar(label="Action")
     plt.title(
-        f"t-SNE projection of FFT-transformed whitened data colored by epoch (action)"
+        f"t-SNE projection of FFT-transformed whitened data colored by action"
     )
     plt.show()
 
@@ -53,9 +54,9 @@ def plotWithUMAP(data_path, actions): #input data path, eg "../DataCollection/da
 
     plt.figure(figsize=(10, 8))
     plt.scatter(embedding[:, 0], embedding[:, 1], c=epoch_indices, cmap="viridis", s=10)
-    plt.colorbar(label="Epoch")
+    plt.colorbar(label="Action")
     plt.title(
-        f"UMAP projection of FFT-transformed whitened data colored by epoch (action)"
+        f"UMAP projection of FFT-transformed whitened data colored by action"
     )
     plt.show()
 
@@ -63,7 +64,7 @@ def plotWithUMAP(data_path, actions): #input data path, eg "../DataCollection/da
 # ------------------------------------------------------
 
 # Sample data
-eeg_data_path = f"../DataCollection/data/105/1/1/"
+eeg_data_path = f"../DataCollection/data/EEGdata/105/1/1/"
 
 from dataclasses import dataclass
 @dataclass
@@ -102,4 +103,4 @@ actions = {
     ),
 }
 
-plotWithTSNE(eeg_data_path, actions)
+plotWithUMAP(eeg_data_path, actions)
