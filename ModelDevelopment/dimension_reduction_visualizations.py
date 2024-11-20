@@ -21,13 +21,17 @@ def processresults(data): #used in ploting functions
     #get epoch information
     epoch_indices = np.repeat(np.arange(data.shape[0]), data.shape[1] * data.shape[3]) #possible source of error, flattening may not arrange epochs like this
     epoch_indices = epoch_indices % 4 + 1
-    print(epoch_indices)
     return fdata, epoch_indices
     
 # T-SNE
-def plotWithTSNE(data_path, actions):
+def plotWithTSNE(data_path, actions, isolate, action):
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
     data, epoch_indices = processresults(eeg_data)
+
+    if isolate:
+        indices = np.where(epoch_indices == action)[0]
+        data = data[indices]
+        epoch_indices = epoch_indices[indices]
     
     tsne = TSNE(n_components=2, perplexity=15, max_iter=1000, random_state=42) # change these values for different results
     tsne_embedding = tsne.fit_transform(data)
@@ -38,15 +42,20 @@ def plotWithTSNE(data_path, actions):
     )
     plt.colorbar(label="Action")
     plt.title(
-        f"t-SNE projection of FFT-transformed whitened data colored by action"
+        f"t-SNE projection of preprocessed data colored by action"
     )
     plt.show()
 
 
 # UMAP
-def plotWithUMAP(data_path, actions): #input data path, eg "../DataCollection/data/105/1/1/" and actions
+def plotWithUMAP(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" and actions
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
     data, epoch_indices = processresults(eeg_data)
+
+    if isolate:
+        indices = np.where(epoch_indices == action)[0]
+        data = data[indices]
+        epoch_indices = epoch_indices[indices]
     
     reducer = umap.UMAP()
     embedding = reducer.fit_transform(data)
@@ -56,7 +65,7 @@ def plotWithUMAP(data_path, actions): #input data path, eg "../DataCollection/da
     plt.scatter(embedding[:, 0], embedding[:, 1], c=epoch_indices, cmap="viridis", s=10)
     plt.colorbar(label="Action")
     plt.title(
-        f"UMAP projection of FFT-transformed whitened data colored by action"
+        f"UMAP projection of preprocessed data colored by action"
     )
     plt.show()
 
@@ -103,4 +112,4 @@ actions = {
     ),
 }
 
-plotWithUMAP(eeg_data_path, actions)
+plotWithUMAP(eeg_data_path, actions, True, 1)
