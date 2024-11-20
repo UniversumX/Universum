@@ -99,7 +99,7 @@ def get_data_from_visit(subject_id, trial_number, visit_number):
     # Load data as CSV
 
     data_directory_path = (
-        f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
+        f"../DataCollection/data{subject_id}/{visit_number}/{trial_number}/"
     )
 
     eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
@@ -140,7 +140,7 @@ def convert_timestamp_to_time_since_last_epoch(df):
     """
     Converts the timestamp to time since the last epoch
     """
-    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype(int) / 10**9
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype('int64') / 10**9
     return df
 
 
@@ -180,6 +180,136 @@ def preprocess_person(
         res.append([x, accel_data, action_data])
     return res
 
+def feature_extract(x):
+    num_epochs, num_channels, num_frequencies, num_samples = x.shape
+
+    # set window size and offset
+    window_size = 10
+    window_offset = 1
+    y = []
+
+    # sweeping window
+    i = 0
+    while i <= num_samples - window_size:
+        y.append(x[:, :, :, i: i+window_size])
+        i += window_offset
+    y = np.stack(y, axis=4)
+    
+    print("windowed dimensions:", y.shape) # num_epochs, num_channels, num_frequencies, window_size, num_window
+    print("original dimensions: ", x.shape)
+
+    a = num_frequencies * window_size # reused variable
+    eigvecs = []
+    eigvals = []
+    for j in range(y.shape[0]):
+        vecs_epoch = []
+        vals_epoch = []
+        for k in range(y.shape[1]):
+            y_1 = y[j][k]
+            y_flattened = y_1.reshape(-1, y_1.shape[2]).transpose()
+
+            # PCA
+            y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+            cov = np.cov(y_standardized, rowvar=False)
+            eigval, eigvec = np.linalg.eigh(cov)
+            sorted_indices= np.argsort(eigval)[::-1]
+            eigval = eigval[sorted_indices]
+            eigvec = eigvec[:, sorted_indices]
+
+            vecs_epoch.append(eigvec)
+            vals_epoch.append(eigval)
+        #print(vals_epoch.shape)
+        #print(eigvals.shape)
+        eigvecs.append(vecs_epoch)
+        eigvals.append(vals_epoch)
+    
+    eigvecs = np.array(eigvecs)
+    eigvals = np.array(eigvals)
+
+    ''' #graph eigenvalue
+    graph_val = eigvals[0][3]
+    plt.bar(np.arange(len(graph_val)), graph_val)
+
+    plt.xlabel("Eigenvalues")
+    plt.ylabel("Weight")
+    plt.title("PCA chart")
+
+    plt.show()
+    '''
+
+    #TODO: project data onto eigenspace
+    
+    # print("eigenvectors:", eigvecs.shape)
+    # print("eigenvalues:", eigvals.shape)
+
+def snr(signal):
+    signal_power = np.mean(signal**2)
+    
+    #assume noise is deviation from mean
+    noise = signal - np.mean(signal)
+    noise_power = np.mean(noise**2)
+    
+    snr = 10 * np.log10(signal_power / noise_power)
+    return snr
+
+def compute_snr(eeg_data):
+    num_epochs, num_channels, num_samples = eeg_data.shape
+    snr_values = np.zeros((num_epochs, num_channels))
+    
+    # Loop through each epoch and each channel
+    for epoch in range(num_epochs):
+        for channel in range(num_channels):
+            snr_values[epoch, channel] = snr(eeg_data[epoch, channel])
+    
+    return snr_values
+
+
+def combine_snrs(snr_values):
+    # Convert SNR from dB to linear scale
+    snr_linear = 10**(snr_values / 10)
+    # Compute the average of the linear SNRs
+    avg_snr_linear = np.mean(snr_linear)
+    # Convert the average linear SNR back to dB
+    combined_snr_db = 10 * np.log10(avg_snr_linear)
+    
+    return combined_snr_db
+
+
+def wiener_filter(x, type, mysize=None, noise=None):
+    #1. direct
+    #2. by channel
+    #3. by epoch
+    #4. by epoch and channel
+    num_epochs, num_channels, num_samples = x.shape
+    if (type == 1):
+        # Combine everything
+        combined = x.reshape(-1)
+        filtered_combined = signal.wiener(combined, mysize=mysize, noise=noise)
+        filtered = filtered_combined.reshape(x.shape)
+        return filtered
+    elif (type == 2):
+        filtered = np.zeros_like(x)
+        for channel in range(num_channels):
+            # Combine all epochs for this channel into one continuous signal
+            combined = x[:, channel, :].reshape(-1)
+            filtered_channel = signal.wiener(combined, mysize=mysize, noise=noise)
+            filtered[:, channel, :] = filtered_channel.reshape(num_epochs, num_samples)
+        return filtered
+    elif (type == 3):
+        filtered = np.zeros_like(x)
+        for epoch in range(num_epochs):
+            combined = x[epoch, :, :].reshape(-1)
+            # Combine all channels for this epoch into one continuous signal
+            filtered_epoch = signal.wiener(combined, mysize=mysize, noise=noise)
+            filtered[epoch, :, :] = filtered_epoch.reshape(num_channels, num_samples)
+        return filtered
+    else: #type 4
+        filtered = np.copy(x)
+        for epoch in range(num_epochs):
+            for channel in range(num_channels):
+                # Apply filter to each channel of each epoch
+                filtered[epoch, channel] = signal.wiener(x[epoch, channel], mysize=mysize, noise=noise)
+        return filtered
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
@@ -256,10 +386,29 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     ch_names = eeg_data.columns[1:].tolist()
     ch_types = ["eeg"] * len(ch_names)
 
+### TODO:
+# Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
+# Create events from action_data
+# events = []
+# for index, row in action_data.iterrows():
+#     sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+#     action_value = int(row["action_value"])
+#     events.append([sample, 0, action_value])
+# #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
+
+
     events = []
+    eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
+    action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
+    last_eeg_timestamp = eeg_data["timestamp"].max()
+    threshold = pd.Timedelta(seconds=0.1)
+
     for index, row in action_data.iterrows():
         sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
         action_value = int(row["action_value"])
+        # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
+        if row["timestamp"] > last_eeg_timestamp + threshold:
+            print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
         events.append([sample, 0, action_value])
 
     events = np.array(events)
@@ -291,9 +440,18 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         # baseline=(None, 0),
         preload=True,
     )
+    # TODO: Move this to extract features function
     x = epochs.get_data(copy=True)  # the last event is end of data collection
     y = epochs.events[:-1]  # the last event of the data
     num_epochs, num_channels, num_samples = x.shape
+
+    #filter
+    snr_before_filtering = compute_snr(x)
+    x = wiener_filter(x, 1) # toggle second arg [1-4] (works marginally better with 1-3)
+    snr_after_filtering = compute_snr(x) # evaluating filter performance with signal to noise ratio
+    print(f"Combined SNR Before Filtering: {combine_snrs(snr_before_filtering):.2f} dB")
+    print(f"Combined SNR After Filtering: {combine_snrs(snr_after_filtering):.2f} dB")
+
     x = x.reshape(
         num_channels, num_epochs * num_samples
     )  # stack all of the epochs together for PCA
@@ -326,7 +484,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         2,
         x,
     )
-
+    
     # get rid of frequencies above cutoff_max frequency
     top_index = int(np.ceil(x.shape[2] / ((sampling_frequency / 2) / cutoff_max)))
     x = x[:, :, :top_index, :]
@@ -334,82 +492,76 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     # sweeping window to increase data
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
     # <<<<<<< HEAD
-    #
-    #     # # do a spectogram of the data
-    #     # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-    #     # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-    #     # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-    #     # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
-    #     # print(x.shape)
-    #     # for channel in range(x.shape[0]):
-    #     #     # so this plots the spectogram, it should be:
-    #     #     plt.figure()
-    #     #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-    #     #     plt.title(f"Spectrogram of Channel {channel}")
-    #     #     plt.ylabel("Frequency * Epoch [Hz]")
-    #     #     plt.xlabel("Time [s]")
-    #     #     plt.show()
-    #     #
-    #     # features = PCA(n_components=2).fit_transform(stft_data.T)
-    #     # plt.scatter(features[:, 0], features[:, 1])
-    #     # plt.show()
+
+        # # do a spectogram of the data
+        # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+        # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+        # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+        # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+        # print(x.shape)
+        # for channel in range(x.shape[0]):
+        #     # so this plots the spectogram, it should be:
+        #     plt.figure()
+        #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+        #     plt.title(f"Spectrogram of Channel {channel}")
+        #     plt.ylabel("Frequency * Epoch [Hz]")
+        #     plt.xlabel("Time [s]")
+        #     plt.show()
+        #
+        # features = PCA(n_components=2).fit_transform(stft_data.T)
+        # plt.scatter(features[:, 0], features[:, 1])
+        # plt.show()
     # =======
-    #     window_size = 10
-    #     window_offset = 2
-    #     y = np.empty([num_epochs, num_channels, num_frequencies, 10])
-    #
-    #     i = 0
-    #     while i < x.shape[3] - window_size:
-    #         y = np.concatenate([y, x[:, :, :, i: i+window_size]], axis=3)
-    #         i += window_offset
-    #
-    #     # stack the epochs together for PCA
-    #     if should_visualize:
-    #         plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
-    #
-    #     # Do PCA on the data in a feature extraction portion
-    #     num_components = 32
-    #     atures = np.zeros((num_channels, num_components, num_samples))
-    #
-    #     # do a spectogram of the data
-    #     # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-    #     # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-    #     # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-    #     # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
-    #     print(x.shape)
-    #     for channel in range(x.shape[0]):
-    #         # so this plots the spectogram, it should be:
-    #         plt.figure()
-    #         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-    #         plt.title(f"Spectrogram of Channel {channel}")
-    #         plt.ylabel("Frequency * Epoch [Hz]")
-    #         plt.xlabel("Time [s]")
-    #         plt.show()
-    # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
-    #
-    #     features = PCA(n_components=2).fit_transform(stft_data.T)
-    #
-    #     plt.scatter(features[:, 0], features[:, 1])
-    #     plt.show()
-    #
-    #     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
-    #     ica.fit(whitened_raw)
-    #     ica.plot_sources(whitened_raw, show_scrollbars=False)
-    #     plt.show()
-    #
-    # def print_relative_importance_of_ICA_features(ica):
-    #     for i, component in enumerate(ica.mixing_matrix_):
-    #         explained_var_ratio = ica.get_explained_variance_ratio(
-    #             whitened_raw, components=[i], ch_type="eeg"
-    #         )
-    #         print(
-    #             f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
-    #         )
-    #
-    # print_relative_importance_of_ICA_features(ica)
-    #
-    # sources = ica.get_sources(whitened_raw).get_data()
-    # first_component_signal = sources[0, :]
+
+    feature_extract(x)
+
+    # stack the epochs together for PCA
+    if should_visualize:
+        plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
+
+    # Do PCA on the data in a feature extraction portion
+    num_components = 32
+    atures = np.zeros((num_channels, num_components, num_samples))
+
+    # do a spectogram of the data
+    # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+    # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+    # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+    # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+    print(x.shape)
+#     for channel in range(x.shape[0]):
+#         # so this plots the spectogram, it should be:
+#         plt.figure()
+#         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+#         plt.title(f"Spectrogram of Channel {channel}")
+#         plt.ylabel("Frequency * Epoch [Hz]")
+#         plt.xlabel("Time [s]")
+#         plt.show()
+# # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
+
+#     features = PCA(n_components=2).fit_transform(stft_data.T)
+
+#     plt.scatter(features[:, 0], features[:, 1])
+#     plt.show()
+
+#     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
+#     ica.fit(whitened_raw)
+#     ica.plot_sources(whitened_raw, show_scrollbars=False)
+#     plt.show()
+
+#     def print_relative_importance_of_ICA_features(ica):
+#         for i, component in enumerate(ica.mixing_matrix_):
+#             explained_var_ratio = ica.get_explained_variance_ratio(
+#                 whitened_raw, components=[i], ch_type="eeg"
+#             )
+#             print(
+#                 f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
+#             )
+
+#     print_relative_importance_of_ICA_features(ica)
+
+#     sources = ica.get_sources(whitened_raw).get_data()
+#     first_component_signal = sources[0, :]
     return x, accel_data, action_data["action_value"]
 
 
