@@ -24,7 +24,7 @@ def processresults(data): #used in ploting functions
     return fdata, epoch_indices
     
 # T-SNE
-def plotWithTSNE(data_path, actions, isolate, action):
+def plotWithTSNE(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
     data, epoch_indices = processresults(eeg_data)
 
@@ -48,7 +48,7 @@ def plotWithTSNE(data_path, actions, isolate, action):
 
 
 # UMAP
-def plotWithUMAP(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" and actions
+def plotWithUMAP(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
     data, epoch_indices = processresults(eeg_data)
 
@@ -59,7 +59,6 @@ def plotWithUMAP(data_path, actions, isolate, action): #input data path, eg "../
     
     reducer = umap.UMAP()
     embedding = reducer.fit_transform(data)
-    print(embedding.shape)
 
     plt.figure(figsize=(10, 8))
     plt.scatter(embedding[:, 0], embedding[:, 1], c=epoch_indices, cmap="viridis", s=10)
@@ -69,11 +68,29 @@ def plotWithUMAP(data_path, actions, isolate, action): #input data path, eg "../
     )
     plt.show()
 
+def fixData(data_path): #doesn't work, doesn't line up with accelerometer data
+    import os
+    import datetime
+    os.rename(data_path + "eeg_data_raw.csv", data_path + "old_eeg_data_raw.csv")
+    input_file = data_path + "old_eeg_data_raw.csv"
+    output_file = data_path + "eeg_data_raw.csv"
+
+    data = pd.read_csv(input_file, header=None)
+
+    columns = ["timestamp", "CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"]
+    data.columns = columns
+
+    reference_date = datetime.datetime(2024, 10, 17, 19, 39, 48, tzinfo=datetime.timezone.utc)
+    data["timestamp"] = data["timestamp"].apply(
+        lambda x: (reference_date + datetime.timedelta(seconds=x)).strftime("%Y-%m-%d %H:%M:%S.%f")
+    )
+
+    data.to_csv(output_file, index=False)
 
 # ------------------------------------------------------
 
 # Sample data
-eeg_data_path = f"../DataCollection/data/EEGdata/105/1/1/"
+eeg_data_path = f"../DataCollection/data/EEGdata/108/1/1/"
 
 from dataclasses import dataclass
 @dataclass
@@ -112,4 +129,4 @@ actions = {
     ),
 }
 
-plotWithUMAP(eeg_data_path, actions, True, 1)
+plotWithUMAP(eeg_data_path, actions, False, 1)
