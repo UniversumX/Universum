@@ -226,17 +226,6 @@ def feature_extract(x):
     eigvecs = np.array(eigvecs)
     eigvals = np.array(eigvals)
 
-    ''' #graph eigenvalue
-    graph_val = eigvals[0][3]
-    plt.bar(np.arange(len(graph_val)), graph_val)
-
-    plt.xlabel("Eigenvalues")
-    plt.ylabel("Weight")
-    plt.title("PCA chart")
-
-    plt.show()
-    '''
-
     #TODO: project data onto eigenspace
     
     # print("eigenvectors:", eigvecs.shape)
@@ -317,42 +306,29 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     ch_names = eeg_data.columns[1:].tolist()
     ch_types = ["eeg"] * len(ch_names)
 
-### TODO:
-# Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
-# Create events from action_data
-# events = []
-# for index, row in action_data.iterrows():
-#     sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
-#     action_value = int(row["action_value"])
-#     events.append([sample, 0, action_value])
-# #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
 
+    events = []
+    eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
+    action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
+    last_eeg_timestamp = eeg_data["timestamp"].max()
+    threshold = pd.Timedelta(seconds=0.1)
 
-events = []
-eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
-action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
-last_eeg_timestamp = eeg_data["timestamp"].max()
-threshold = pd.Timedelta(seconds=0.1)
-
-for index, row in action_data.iterrows():
-    sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
-    action_value = int(row["action_value"])
-    # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
-    if row["timestamp"] > last_eeg_timestamp + threshold:
-        print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
-    events.append([sample, 0, action_value])
+    for index, row in action_data.iterrows():
+        sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+        action_value = int(row["action_value"])
+        # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
+        if row["timestamp"] > last_eeg_timestamp + threshold:
+            print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
+        events.append([sample, 0, action_value])
 
     events = np.array(events)
-
     event_dict = {
         action_name: action.action_value
         for (action_name, action) in actions.items()
         if actions["end_collection"].action_value != action.action_value
     }
 
-    info = mne.create_info(
-        ch_names=ch_names, sfreq=sampling_frequency, ch_types=ch_types
-    )
+    info = mne.create_info(ch_names=ch_names, sfreq=sampling_frequency, ch_types=ch_types)
     eeg_data_array = eeg_data[ch_names].to_numpy().T
     raw = mne.io.RawArray(eeg_data_array, info)
 
@@ -414,77 +390,25 @@ for index, row in action_data.iterrows():
 
     # sweeping window to increase data
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
-    # <<<<<<< HEAD
 
-        # # do a spectogram of the data
-        # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-        # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-        # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-        # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
-        # print(x.shape)
-        # for channel in range(x.shape[0]):
-        #     # so this plots the spectogram, it should be:
-        #     plt.figure()
-        #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-        #     plt.title(f"Spectrogram of Channel {channel}")
-        #     plt.ylabel("Frequency * Epoch [Hz]")
-        #     plt.xlabel("Time [s]")
-        #     plt.show()
-        #
-        # features = PCA(n_components=2).fit_transform(stft_data.T)
-        # plt.scatter(features[:, 0], features[:, 1])
-        # plt.show()
-    # =======
 
     feature_extract(x)
 
     # stack the epochs together for PCA
     if should_visualize:
+        # Compute pxx, frequencies, and times using plot_fft
+        pxx, frequencies, times = plot_fft(
+        data=eeg_data[ch_names].to_numpy().flatten(),
+        sampling_frequency=sampling_frequency,
+        fft_window_size=window_size,
+        percent_overlap_between_windows=percent_overlap,
+    )
         plot_entropy_of_data_time_and_frequncy_dimensions(pxx, frequencies, times)
 
     # Do PCA on the data in a feature extraction portion
     num_components = 32
     atures = np.zeros((num_channels, num_components, num_samples))
-
-    # do a spectogram of the data
-    # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-    # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-    # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-    # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
     print(x.shape)
-#     for channel in range(x.shape[0]):
-#         # so this plots the spectogram, it should be:
-#         plt.figure()
-#         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-#         plt.title(f"Spectrogram of Channel {channel}")
-#         plt.ylabel("Frequency * Epoch [Hz]")
-#         plt.xlabel("Time [s]")
-#         plt.show()
-# # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
-
-#     features = PCA(n_components=2).fit_transform(stft_data.T)
-
-#     plt.scatter(features[:, 0], features[:, 1])
-#     plt.show()
-
-#     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
-#     ica.fit(whitened_raw)
-#     ica.plot_sources(whitened_raw, show_scrollbars=False)
-#     plt.show()
-
-#     def print_relative_importance_of_ICA_features(ica):
-#         for i, component in enumerate(ica.mixing_matrix_):
-#             explained_var_ratio = ica.get_explained_variance_ratio(
-#                 whitened_raw, components=[i], ch_type="eeg"
-#             )
-#             print(
-#                 f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
-#             )
-
-#     print_relative_importance_of_ICA_features(ica)
-
-#     sources = ica.get_sources(whitened_raw).get_data()
-#     first_component_signal = sources[0, :]
     return x, accel_data, action_data["action_value"]
 
 
@@ -520,16 +444,7 @@ if __name__ == "__main__":
         ),
     }
 
-    # Define the data paths
-    # trial_number = 1
-    # subject_id = 103
-    # visit_number = 1
-    # eeg_data, accel_data, action_data = preprocess(
-    #     f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/",
-    #     actions,
-    #     should_visualize=False,
-    # )
-    # print("Eeg data shape:", eeg_data.shape)
+    
     subject_id = 105
     visit_number = 1
     res = preprocess_person(
@@ -542,52 +457,3 @@ if __name__ == "__main__":
         print(action_data)
 
 
-# model = NMF(n_components=n_components, init="random", random_state=0)
-# W = model.fit_transform(stft_data.T)
-# H = model.components_
-#
-# # Plot NMF components
-# plt.figure(figsize=(15, 10))
-# for i in range(n_components):
-#     plt.subplot(n_components // 2, 2, i + 1)
-#     plt.plot(H[i])
-#     plt.title(f"NMF Component {i+1}")
-#     plt.xlabel("Time")
-#     plt.ylabel("Amplitude")
-# plt.tight_layout()
-# plt.show()
-#
-# # Print relative importance of NMF features
-# print("Relative importance of NMF features:")
-# feature_importance = np.sum(W, axis=0)
-# feature_importance /= np.sum(feature_importance)
-# for i, importance in enumerate(feature_importance):
-#     print(f"Feature {i+1}: {importance:.4f}")
-#
-# # Reconstruct the signal using NMF components
-# reconstructed_data = np.dot(W, H)
-#
-# # Calculate reconstruction error
-# reconstruction_error = np.mean((stft_data.T - reconstructed_data) ** 2)
-# print(f"Reconstruction error: {reconstruction_error:.4f}")
-#
-# # Plot original vs reconstructed signal for the first channel
-# plt.figure(figsize=(15, 5))
-# plt.plot(stft_data[0], label="Original")
-# plt.plot(reconstructed_data[:, 0], label="Reconstructed")
-# plt.title("Original vs Reconstructed Signal (First Channel)")
-# plt.xlabel("Time")
-# plt.ylabel("Amplitude")
-# plt.legend()
-# plt.show()
-#
-# # Perform FFT on NMF components
-# for i in range(n_components):
-#     plot_fft(H[i], sfreq, NFFT, percent_overlap)
-#     plt.title(f"FFT of NMF Component {i+1}")
-#     plt.show()
-
-
-### Explort preprocessed data
-
-# do a tsne on the data
