@@ -158,34 +158,79 @@ def classify_eeg_data(subject_id, visit_number, actions):
 
     # Organize the training data by action
     action_num = 4
-    feature = [None] # Start with a placeholder for consistent indexing
-    for i in range(1, action_num+1):
-        feature.append(X_train[y_train == i])
-    
-    # Standardize the features
-    scaler = StandardScaler()
+    channel_num = 8
 
-    # TODO because scaler doesn't support the complex number, need to be changed
-    # Standardize the features, using the magnitude of complex numbers
-    feature_scaled = []
-    for i in range(1, action_num + 1):
-        magnitude_feature = np.abs(feature[i])  # Use the magnitude
-        feature_scaled.append(scaler.fit_transform(magnitude_feature))
-    
-    X_test = scaler.fit_transform(np.abs(X_test))
-    
-    # Train a GMM model for each action
-    gmms = [None]  # Placeholder for consistent indexing
-    for i in range(1, action_num + 1):
-        gmm = GaussianMixture(n_components=1, random_state=42)
-        gmm.fit(feature_scaled[i])
-        gmms.append(gmm)
+    # Initialize a structure to hold arrays for each channel and each action
+    features_by_channel_action = {action: [None] * channel_num for action in range(1, action_num + 1)}
 
-    # Compute the probability of each test sample belonging to each action
+    # Iterate over actions
+    for action in range(1, action_num + 1):
+        # Filter data for the current action
+        action_data = X_train[y_train == action]
+
+        # Iterate over channels
+        for channel in range(channel_num):
+            # Extract data for the current channel and store it
+            if features_by_channel_action[action][channel] is None:
+                features_by_channel_action[action][channel] = action_data[:, channel]
+            else:
+                features_by_channel_action[action][channel] = np.vstack(
+                    (features_by_channel_action[action][channel], action_data[:, channel])
+                )
+
+    # Initialize a dictionary to store GMMs for each action and channel
+    gmms_by_channel_action = {
+        action: [None] * channel_num for action in range(1, action_num + 1)
+    }
+
+    # Initialize a dictionary to store scalers for each action and channel
+    scalers_by_channel_action = {
+        action: [None] * channel_num for action in range(1, action_num + 1)
+    }
+
+    # Train a GMM for each action and channel
+    for action in range(1, action_num + 1):
+        for channel in range(channel_num):
+            # Extract data for the current action and channel
+            channel_data = features_by_channel_action[action][channel]
+            
+            # Standardize the data for the current action and channel
+            scaler = StandardScaler()
+            channel_data_scaled = scaler.fit_transform(np.abs(channel_data))
+
+            # Store the scaler
+            scalers_by_channel_action[action][channel] = scaler
+
+            # Train a GMM with 1 component for this action and channel
+            gmm = GaussianMixture(n_components=1, random_state=42)
+            gmm.fit(channel_data_scaled)
+            
+            # Store the trained GMM
+            gmms_by_channel_action[action][channel] = gmm
+
+    # Test the GMMs
     probabilities = np.zeros((X_test.shape[0], action_num))
 
-    for i in range(1, action_num + 1):
-        probabilities[:, i - 1] = gmms[i].score_samples(X_test)
+    # Standardize and evaluate probabilities for each channel
+    for action in range(1, action_num + 1):
+        action_probabilities = np.zeros(X_test.shape[0])  # Initialize for this action
+        for channel in range(channel_num):
+            # Extract and standardize test data for the current channel
+            channel_test_data = X_test[:, channel, :]  # Adjust slicing based on X_test dimensions
+            scaler = scalers_by_channel_action[action][channel]
+            channel_test_data_scaled = scaler.transform(channel_test_data)
+
+            # Get GMM for this action and channel
+            gmm = gmms_by_channel_action[action][channel]
+
+            # Compute probabilities for this channel
+            channel_probabilities = gmm.score_samples(channel_test_data_scaled)
+
+            # Accumulate probabilities (log probabilities can be added directly)
+            action_probabilities += channel_probabilities
+
+        # Store the total probability for this action
+        probabilities[:, action - 1] = action_probabilities
 
     # Convert log probabilities to normal probabilities
     probabilities = np.exp(probabilities)
@@ -194,7 +239,7 @@ def classify_eeg_data(subject_id, visit_number, actions):
     probabilities = probabilities / probabilities.sum(axis=1, keepdims=True)
 
     # Compute the action with the highest probability for each test sample
-    predicted_actions = np.argmax(probabilities, axis=1) + 1  # Add 1 to match the original action numbering
+    predicted_actions = np.argmax(probabilities, axis=1) + 1  # Add 1 to match action numbering
 
     # Now you can compare predicted_actions with y_test
     print("Predicted actions:", predicted_actions)
@@ -203,43 +248,7 @@ def classify_eeg_data(subject_id, visit_number, actions):
     # Example of comparing predicted actions with the actual test labels
     accuracy = np.mean(predicted_actions == y_test)
     print(f"Accuracy: {accuracy * 100:.2f}%")
-    '''
-    gmm.fit(X_scaled)
-    # Predict the class of the test data
-    test = gmm.predict(X_scaled)
-    y_train_pred = gmm.predict(X_train)
-    y_test_pred = gmm.predict(X_test)
-    
-    # Reduce X_scaled to 2 components using PCA
-    pca = PCA(n_components=2)
-    X_pca = pca.fit_transform(X_scaled)
 
-    # Scatter plot of the reduced features
-    plt.figure(figsize=(10, 6))
-    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=test, cmap='viridis', edgecolor='k', s=50)
-    plt.colorbar(label='Class Label')
-    plt.show()
-    
-    
-    # Map GMM clusters to actual labels
-    mapping = {}
-    for i in range(4):  # Assuming 4 clusters in GMM
-        cluster = np.where(y_train_pred == i)[0]
-        result = mode(y_train[cluster])
-
-    # Apply the mapping to predicted values
-    y_train_mapped = np.array([mapping[cluster] for cluster in y_train_pred])
-    y_test_mapped = np.array([mapping[cluster] for cluster in y_test_pred])
-
-    # Evaluate the model
-    train_accuracy = accuracy_score(y_train, y_train_mapped)
-    test_accuracy = accuracy_score(y_test, y_test_mapped)
-
-    print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
-    print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
-    print("Classification Report:")
-    print(classification_report(y_test, y_test_mapped, target_names=["left elbow relax", "left elbow flex", "right elbow relax", "right elbow flex"]))
-    '''
 
 if __name__ == "__main__":
     # Example actions dictionary (replace with actual Action objects)
