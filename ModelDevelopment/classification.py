@@ -111,11 +111,6 @@ def load_data_and_labels(subject_id, visit_number, actions):
     # Define channels
     # channels_to_use = [0, 1, 2, 3, 4, 5, 6, 7]
 
-    # Extract features
-    X = extract_features(eeg_data, channels_to_use, frequencies)
-    y = action_data  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
-
-    # X = extract_features(eeg_feature, channels_to_use, frequencies)
     X = eeg_feature_combined
     y = action_data_combined  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
 
@@ -288,7 +283,7 @@ if __name__ == "__main__":
     }
 
     # Example parameters (replace with actual values)
-    subject_id = "105"
+    subject_id = "108"
     visit_number = 1
 
     classify_eeg_data(subject_id, visit_number, actions)
