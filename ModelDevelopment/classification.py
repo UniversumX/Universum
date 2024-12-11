@@ -14,6 +14,16 @@ from typing import Dict
 from dataclasses import dataclass
 
 
+<<<<<<< HEAD
+=======
+@dataclass
+class Action:
+    action_value: int
+    text: str
+    audio: str
+    image: str
+
+>>>>>>> 4f4d62939a9543af43dbe1c97b2139cd2d4616e1
 def get_frequency_band_indices(frequencies, band_min, band_max):
     """
     Returns the indices of frequencies that fall within a specified band range.
@@ -65,35 +75,65 @@ def extract_features(eeg_data, channels, frequencies):
 def load_data_and_labels(subject_id, visit_number, actions):
     # Load preprocessed data
     directory_path = f"../DataCollection/data/EEGdata/{subject_id}/{visit_number}/"
+<<<<<<< HEAD
     eeg_data, accel_data, action_data = preprocess_person(
+=======
+    # eeg_data, accel_data, action_data 
+    res = preprocess_person(
+>>>>>>> 4f4d62939a9543af43dbe1c97b2139cd2d4616e1
         directory_path,
         actions,
         should_visualize=False,
     )
+    eeg_feature_combined = []
+    accel_data_combined = []
+    action_data_combined = []
+    for eeg_feature, accel_data, action_data in res:
+        eeg_feature_combined.append(eeg_feature)
+        accel_data_combined.append(accel_data)
+        action_data_combined.append(action_data)
+    
+    # Merge all arrays using np.concatenate
+    eeg_feature_combined = np.concatenate(eeg_feature_combined, axis=0)
+    accel_data_combined = np.concatenate(accel_data_combined, axis=0)
+    action_data_combined = np.concatenate(action_data_combined, axis=0)
+
 
     # Print the number of epochs in eeg_data
-    num_epochs = eeg_data.shape[0]
+    num_epochs = len(eeg_feature_combined)
     print(f"Number of epochs in EEG data: {num_epochs}")
 
     # Print the number of entries in action_data
-    num_action_entries = len(action_data)
+    num_action_entries = len(action_data_combined)
     print(f"Number of action data entries: {num_action_entries}")
 
     # Extract the number of samples per epoch (from the last dimension of eeg_data)
-    num_samples_per_epoch = eeg_data.shape[-1]
+    # num_samples_per_epoch = eeg_feature.shape[-1]
 
-    Fs = 256  # Sampling frequency in Hz
+    # Fs = 256  # Sampling frequency in Hz
 
     # Generate frequency values for positive frequencies only (assuming real-valued EEG data)
+<<<<<<< HEAD
     frequencies = np.fft.rfftfreq(num_samples_per_epoch, d=1 / Fs)
 
+=======
+    # frequencies = np.fft.rfftfreq(num_samples_per_epoch, d=1/Fs)
+    
+>>>>>>> 4f4d62939a9543af43dbe1c97b2139cd2d4616e1
     # Define channels
-    channels_to_use = [0, 1, 2, 3, 4, 5, 6, 7]
+    # channels_to_use = [0, 1, 2, 3, 4, 5, 6, 7]
 
     # Extract features
+<<<<<<< HEAD
     X = extract_features(eeg_data, channels_to_use, frequencies)
     y = action_data  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
 
+=======
+    # X = extract_features(eeg_feature, channels_to_use, frequencies)
+    X = eeg_feature_combined
+    y = action_data_combined  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
+    
+>>>>>>> 4f4d62939a9543af43dbe1c97b2139cd2d4616e1
     return X, y
 
     '''
@@ -134,11 +174,8 @@ def classify_eeg_data(subject_id, visit_number, actions):
     # Load and preprocess data from multiple trials
     X, y = load_data_and_labels(subject_id, visit_number, actions)
 
-    # Standardize the features
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
     # Now, split the data into training and test sets
+<<<<<<< HEAD
     X_train, X_test, y_train, y_test = train_test_split(
         X_scaled, y, test_size=0.2, random_state=42
     )
@@ -168,15 +205,104 @@ def classify_eeg_data(subject_id, visit_number, actions):
     for i in range(4):  # Assuming 4 clusters in GMM
         cluster = np.where(y_train_pred == i)[0]
         result = mode(y_train[cluster])
+=======
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Apply the mapping to predicted values
-    y_train_mapped = np.array([mapping[cluster] for cluster in y_train_pred])
-    y_test_mapped = np.array([mapping[cluster] for cluster in y_test_pred])
+    # Organize the training data by action
+    action_num = 4
+    channel_num = 8
+>>>>>>> 4f4d62939a9543af43dbe1c97b2139cd2d4616e1
 
-    # Evaluate the model
-    train_accuracy = accuracy_score(y_train, y_train_mapped)
-    test_accuracy = accuracy_score(y_test, y_test_mapped)
+    # Initialize a structure to hold arrays for each channel and each action
+    features_by_channel_action = {action: [None] * channel_num for action in range(1, action_num + 1)}
 
+    # Iterate over actions
+    for action in range(1, action_num + 1):
+        # Filter data for the current action
+        action_data = X_train[y_train == action]
+
+        # Iterate over channels
+        for channel in range(channel_num):
+            # Extract data for the current channel and store it
+            if features_by_channel_action[action][channel] is None:
+                features_by_channel_action[action][channel] = action_data[:, channel]
+            else:
+                features_by_channel_action[action][channel] = np.vstack(
+                    (features_by_channel_action[action][channel], action_data[:, channel])
+                )
+
+    # Initialize a dictionary to store GMMs for each action and channel
+    gmms_by_channel_action = {
+        action: [None] * channel_num for action in range(1, action_num + 1)
+    }
+
+    # Initialize a dictionary to store scalers for each action and channel
+    scalers_by_channel_action = {
+        action: [None] * channel_num for action in range(1, action_num + 1)
+    }
+
+    # Train a GMM for each action and channel
+    for action in range(1, action_num + 1):
+        for channel in range(channel_num):
+            # Extract data for the current action and channel
+            channel_data = features_by_channel_action[action][channel]
+            
+            # Standardize the data for the current action and channel
+            scaler = StandardScaler()
+            channel_data_scaled = scaler.fit_transform(np.abs(channel_data))
+
+            # Store the scaler
+            scalers_by_channel_action[action][channel] = scaler
+
+            # Train a GMM with 1 component for this action and channel
+            gmm = GaussianMixture(n_components=1, random_state=42)
+            gmm.fit(channel_data_scaled)
+            
+            # Store the trained GMM
+            gmms_by_channel_action[action][channel] = gmm
+
+    # Test the GMMs
+    probabilities = np.zeros((X_test.shape[0], action_num))
+
+    # Standardize and evaluate probabilities for each channel
+    for action in range(1, action_num + 1):
+        action_probabilities = np.zeros(X_test.shape[0])  # Initialize for this action
+        for channel in range(channel_num):
+            # Extract and standardize test data for the current channel
+            channel_test_data = X_test[:, channel, :]  # Adjust slicing based on X_test dimensions
+            scaler = scalers_by_channel_action[action][channel]
+            channel_test_data_scaled = scaler.transform(channel_test_data)
+
+            # Get GMM for this action and channel
+            gmm = gmms_by_channel_action[action][channel]
+
+            # Compute probabilities for this channel
+            channel_probabilities = gmm.score_samples(channel_test_data_scaled)
+
+            # Accumulate probabilities (log probabilities can be added directly)
+            action_probabilities += channel_probabilities
+
+        # Store the total probability for this action
+        probabilities[:, action - 1] = action_probabilities
+
+    # Convert log probabilities to normal probabilities
+    probabilities = np.exp(probabilities)
+
+    # Normalize to get probabilities summing to 1 for each sample
+    probabilities = probabilities / probabilities.sum(axis=1, keepdims=True)
+
+    # Compute the action with the highest probability for each test sample
+    predicted_actions = np.argmax(probabilities, axis=1) + 1  # Add 1 to match action numbering
+
+    # Now you can compare predicted_actions with y_test
+    print("Predicted actions:", predicted_actions)
+    print("Actual actions:", y_test)
+
+    # Example of comparing predicted actions with the actual test labels
+    accuracy = np.mean(predicted_actions == y_test)
+    print(f"Accuracy: {accuracy * 100:.2f}%")
+
+<<<<<<< HEAD
     print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
     print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
     print("Classification Report:")
@@ -193,12 +319,13 @@ def classify_eeg_data(subject_id, visit_number, actions):
         )
     )
 
+=======
+>>>>>>> 4f4d62939a9543af43dbe1c97b2139cd2d4616e1
 
 if __name__ == "__main__":
     # Example actions dictionary (replace with actual Action objects)
-    from preprocessing import Action
-
     actions = {
+<<<<<<< HEAD
         "left_elbow_relax": Action(
             action_value=1, text="Left Elbow Relax", audio="", image=""
         ),
@@ -213,6 +340,34 @@ if __name__ == "__main__":
         ),
         "end_collection": Action(
             action_value=5, text="End Collection", audio="", image=""
+=======
+        "left_elbow_flex": Action(
+            action_value=1,
+            text="Please flex your left elbow so your arm raises to shoulder level",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "left_elbow_relax": Action(
+            action_value=2,
+            text="Please relax your left elbow back to original state",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "right_elbow_flex": Action(
+            action_value=3,
+            text="Please flex your right elbow so your arm raises to shoulder level",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "right_elbow_relax": Action(
+            action_value=4,
+            text="Please relax your right elbow back to original state",
+            audio="path/to/audio",
+            image="path/to/image",
+        ),
+        "end_collection": Action(
+            action_value=5, text="Data collection ended", audio=None, image=None
+>>>>>>> 4f4d62939a9543af43dbe1c97b2139cd2d4616e1
         ),
     }
 
