@@ -610,7 +610,7 @@ if __name__ == "__main__":
     subject_id = 105
     visit_number = 1
     res = preprocess_person(
-        f"../DataCollection/data/{subject_id}/{visit_number}/",
+        f"../DataCollection/EEGData/data/{subject_id}/{visit_number}/",
         actions,
         should_visualize=False,
     )
