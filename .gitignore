@@ -11,3 +11,5 @@ node_modules/
 universum/
 poetry.lock
 pyproject.toml
+.venv
+venv

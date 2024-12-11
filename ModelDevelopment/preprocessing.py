@@ -99,7 +99,7 @@ def get_data_from_visit(subject_id, trial_number, visit_number):
     # Load data as CSV
 
     data_directory_path = (
-        f"../DataCollection/data/{subject_id}/{visit_number}/{trial_number}/"
+        f"../DataCollection/data{subject_id}/{visit_number}/{trial_number}/"
     )
 
     eeg_data = pd.read_csv(data_directory_path + "eeg_data_raw.csv")
@@ -140,7 +140,7 @@ def convert_timestamp_to_time_since_last_epoch(df):
     """
     Converts the timestamp to time since the last epoch
     """
-    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype(int) / 10**9
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype('int64') / 10**9
     return df
 
 
@@ -183,18 +183,133 @@ def preprocess_person(
 def feature_extract(x):
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
 
+    # set window size and offset
     window_size = 10
     window_offset = 1
     y = []
 
+    # sweeping window
     i = 0
     while i <= num_samples - window_size:
         y.append(x[:, :, :, i: i+window_size])
         i += window_offset
     y = np.stack(y, axis=4)
     
-    print("shape:", y.shape)
-    print("dimensions: ", num_epochs, num_channels, num_frequencies, num_samples)
+    print("windowed dimensions:", y.shape) # num_epochs, num_channels, num_frequencies, window_size, num_window
+    print("original dimensions: ", x.shape)
+
+    a = num_frequencies * window_size # reused variable
+    eigvecs = []
+    eigvals = []
+    for j in range(y.shape[0]):
+        vecs_epoch = []
+        vals_epoch = []
+        for k in range(y.shape[1]):
+            y_1 = y[j][k]
+            y_flattened = y_1.reshape(-1, y_1.shape[2]).transpose()
+
+            # PCA
+            y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+            cov = np.cov(y_standardized, rowvar=False)
+            eigval, eigvec = np.linalg.eigh(cov)
+            sorted_indices= np.argsort(eigval)[::-1]
+            eigval = eigval[sorted_indices]
+            eigvec = eigvec[:, sorted_indices]
+
+            vecs_epoch.append(eigvec)
+            vals_epoch.append(eigval)
+        #print(vals_epoch.shape)
+        #print(eigvals.shape)
+        eigvecs.append(vecs_epoch)
+        eigvals.append(vals_epoch)
+    
+    eigvecs = np.array(eigvecs)
+    eigvals = np.array(eigvals)
+
+    ''' #graph eigenvalue
+    graph_val = eigvals[0][3]
+    plt.bar(np.arange(len(graph_val)), graph_val)
+
+    plt.xlabel("Eigenvalues")
+    plt.ylabel("Weight")
+    plt.title("PCA chart")
+
+    plt.show()
+    '''
+
+    #TODO: project data onto eigenspace
+    
+    # print("eigenvectors:", eigvecs.shape)
+    # print("eigenvalues:", eigvals.shape)
+
+def snr(signal):
+    signal_power = np.mean(signal**2)
+    
+    #assume noise is deviation from mean
+    noise = signal - np.mean(signal)
+    noise_power = np.mean(noise**2)
+    
+    snr = 10 * np.log10(signal_power / noise_power)
+    return snr
+
+def compute_snr(eeg_data):
+    num_epochs, num_channels, num_samples = eeg_data.shape
+    snr_values = np.zeros((num_epochs, num_channels))
+    
+    # Loop through each epoch and each channel
+    for epoch in range(num_epochs):
+        for channel in range(num_channels):
+            snr_values[epoch, channel] = snr(eeg_data[epoch, channel])
+    
+    return snr_values
+
+
+def combine_snrs(snr_values):
+    # Convert SNR from dB to linear scale
+    snr_linear = 10**(snr_values / 10)
+    # Compute the average of the linear SNRs
+    avg_snr_linear = np.mean(snr_linear)
+    # Convert the average linear SNR back to dB
+    combined_snr_db = 10 * np.log10(avg_snr_linear)
+    
+    return combined_snr_db
+
+
+def wiener_filter(x, type, mysize=None, noise=None):
+    #1. direct
+    #2. by channel
+    #3. by epoch
+    #4. by epoch and channel
+    num_epochs, num_channels, num_samples = x.shape
+    if (type == 1):
+        # Combine everything
+        combined = x.reshape(-1)
+        filtered_combined = signal.wiener(combined, mysize=mysize, noise=noise)
+        filtered = filtered_combined.reshape(x.shape)
+        return filtered
+    elif (type == 2):
+        filtered = np.zeros_like(x)
+        for channel in range(num_channels):
+            # Combine all epochs for this channel into one continuous signal
+            combined = x[:, channel, :].reshape(-1)
+            filtered_channel = signal.wiener(combined, mysize=mysize, noise=noise)
+            filtered[:, channel, :] = filtered_channel.reshape(num_epochs, num_samples)
+        return filtered
+    elif (type == 3):
+        filtered = np.zeros_like(x)
+        for epoch in range(num_epochs):
+            combined = x[epoch, :, :].reshape(-1)
+            # Combine all channels for this epoch into one continuous signal
+            filtered_epoch = signal.wiener(combined, mysize=mysize, noise=noise)
+            filtered[epoch, :, :] = filtered_epoch.reshape(num_channels, num_samples)
+        return filtered
+    else: #type 4
+        filtered = np.copy(x)
+        for epoch in range(num_epochs):
+            for channel in range(num_channels):
+                # Apply filter to each channel of each epoch
+                filtered[epoch, channel] = signal.wiener(x[epoch, channel], mysize=mysize, noise=noise)
+        return filtered
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
@@ -271,10 +386,29 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     ch_names = eeg_data.columns[1:].tolist()
     ch_types = ["eeg"] * len(ch_names)
 
+### TODO:
+# Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
+# Create events from action_data
+# events = []
+# for index, row in action_data.iterrows():
+#     sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+#     action_value = int(row["action_value"])
+#     events.append([sample, 0, action_value])
+# #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
+
+
     events = []
+    eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
+    action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
+    last_eeg_timestamp = eeg_data["timestamp"].max()
+    threshold = pd.Timedelta(seconds=0.1)
+
     for index, row in action_data.iterrows():
         sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
         action_value = int(row["action_value"])
+        # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
+        if row["timestamp"] > last_eeg_timestamp + threshold:
+            print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
         events.append([sample, 0, action_value])
 
     events = np.array(events)
@@ -310,6 +444,14 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     x = epochs.get_data(copy=True)  # the last event is end of data collection
     y = epochs.events[:-1]  # the last event of the data
     num_epochs, num_channels, num_samples = x.shape
+
+    #filter
+    snr_before_filtering = compute_snr(x)
+    x = wiener_filter(x, 1) # toggle second arg [1-4] (works marginally better with 1-3)
+    snr_after_filtering = compute_snr(x) # evaluating filter performance with signal to noise ratio
+    print(f"Combined SNR Before Filtering: {combine_snrs(snr_before_filtering):.2f} dB")
+    print(f"Combined SNR After Filtering: {combine_snrs(snr_after_filtering):.2f} dB")
+
     x = x.reshape(
         num_channels, num_epochs * num_samples
     )  # stack all of the epochs together for PCA
@@ -468,7 +610,7 @@ if __name__ == "__main__":
     subject_id = 105
     visit_number = 1
     res = preprocess_person(
-        f"../DataCollection/data/{subject_id}/{visit_number}/",
+        f"../DataCollection/EEGData/data/{subject_id}/{visit_number}/",
         actions,
         should_visualize=False,
     )
