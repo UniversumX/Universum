@@ -1,9 +1,11 @@
 import numpy as np
 import os
+import joblib
 import matplotlib.pyplot as plt
 import matplotlib
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
 from preprocessing import preprocess_person  # Import your preprocessing function
@@ -154,112 +156,128 @@ def classify_eeg_data(subject_id, visit_number, actions):
     # Load and preprocess data from multiple trials
     X, y = load_data_and_labels(subject_id, visit_number, actions)
 
-    # Now, split the data into training and test sets
+    # Split the data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
 
-    # Organize the training data by action
-    action_num = 4
-    channel_num = 8
+    # Instantiate model and train
+    model = SVC(kernel='rbf', C=1.0, gamma='scale')
+    model.fit(X_train, y_train)
 
-    # Initialize a structure to hold arrays for each channel and each action
-    features_by_channel_action = {
-        action: [None] * channel_num for action in range(1, action_num + 1)
-    }
+    # Determine accuraacy of model
+    y_pred = model.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"Accuracy: {accuracy:.2f}")
 
-    # Iterate over actions
-    for action in range(1, action_num + 1):
-        # Filter data for the current action
-        action_data = X_train[y_train == action]
+    # Save model to specific path
+    model_dir = f"ModelDevelopment/models/{subject_id}/{visit_number}"
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, 'svm_model.joblib')
+    joblib.dump(model, model_path)
+    print(f"Model saved to: {model_path}")
 
-        # Iterate over channels
-        for channel in range(channel_num):
-            # Extract data for the current channel and store it
-            if features_by_channel_action[action][channel] is None:
-                features_by_channel_action[action][channel] = action_data[:, channel]
-            else:
-                features_by_channel_action[action][channel] = np.vstack(
-                    (
-                        features_by_channel_action[action][channel],
-                        action_data[:, channel],
-                    )
-                )
+    # # Organize the training data by action
+    # action_num = 4
+    # channel_num = 8
 
-    # Initialize a dictionary to store GMMs for each action and channel
-    gmms_by_channel_action = {
-        action: [None] * channel_num for action in range(1, action_num + 1)
-    }
+    # # Initialize a structure to hold arrays for each channel and each action
+    # features_by_channel_action = {
+    #     action: [None] * channel_num for action in range(1, action_num + 1)
+    # }
 
-    # Initialize a dictionary to store scalers for each action and channel
-    scalers_by_channel_action = {
-        action: [None] * channel_num for action in range(1, action_num + 1)
-    }
+    # # Iterate over actions
+    # for action in range(1, action_num + 1):
+    #     # Filter data for the current action
+    #     action_data = X_train[y_train == action]
 
-    # Train a GMM for each action and channel
-    for action in range(1, action_num + 1):
-        for channel in range(channel_num):
-            # Extract data for the current action and channel
-            channel_data = features_by_channel_action[action][channel]
+    #     # Iterate over channels
+    #     for channel in range(channel_num):
+    #         # Extract data for the current channel and store it
+    #         if features_by_channel_action[action][channel] is None:
+    #             features_by_channel_action[action][channel] = action_data[:, channel]
+    #         else:
+    #             features_by_channel_action[action][channel] = np.vstack(
+    #                 (
+    #                     features_by_channel_action[action][channel],
+    #                     action_data[:, channel],
+    #                 )
+    #             )
 
-            # Standardize the data for the current action and channel
-            scaler = StandardScaler()
-            channel_data_scaled = scaler.fit_transform(np.abs(channel_data))
+    # # Initialize a dictionary to store GMMs for each action and channel
+    # gmms_by_channel_action = {
+    #     action: [None] * channel_num for action in range(1, action_num + 1)
+    # }
 
-            # Store the scaler
-            scalers_by_channel_action[action][channel] = scaler
+    # # Initialize a dictionary to store scalers for each action and channel
+    # scalers_by_channel_action = {
+    #     action: [None] * channel_num for action in range(1, action_num + 1)
+    # }
 
-            # Train a GMM with 1 component for this action and channel
-            gmm = GaussianMixture(n_components=1, random_state=42)
-            gmm.fit(channel_data_scaled)
+    # # Train a GMM for each action and channel
+    # for action in range(1, action_num + 1):
+    #     for channel in range(channel_num):
+    #         # Extract data for the current action and channel
+    #         channel_data = features_by_channel_action[action][channel]
 
-            # Store the trained GMM
-            gmms_by_channel_action[action][channel] = gmm
+    #         # Standardize the data for the current action and channel
+    #         scaler = StandardScaler()
+    #         channel_data_scaled = scaler.fit_transform(np.abs(channel_data))
 
-    # Test the GMMs
-    probabilities = np.zeros((X_test.shape[0], action_num))
+    #         # Store the scaler
+    #         scalers_by_channel_action[action][channel] = scaler
 
-    # Standardize and evaluate probabilities for each channel
-    for action in range(1, action_num + 1):
-        action_probabilities = np.zeros(X_test.shape[0])  # Initialize for this action
-        for channel in range(channel_num):
-            # Extract and standardize test data for the current channel
-            channel_test_data = X_test[
-                :, channel, :
-            ]  # Adjust slicing based on X_test dimensions
-            scaler = scalers_by_channel_action[action][channel]
-            channel_test_data_scaled = scaler.transform(channel_test_data)
+    #         # Train a GMM with 1 component for this action and channel
+    #         gmm = GaussianMixture(n_components=1, random_state=42)
+    #         gmm.fit(channel_data_scaled)
 
-            # Get GMM for this action and channel
-            gmm = gmms_by_channel_action[action][channel]
+    #         # Store the trained GMM
+    #         gmms_by_channel_action[action][channel] = gmm
 
-            # Compute probabilities for this channel
-            channel_probabilities = gmm.score_samples(channel_test_data_scaled)
+    # # Test the GMMs
+    # probabilities = np.zeros((X_test.shape[0], action_num))
 
-            # Accumulate probabilities (log probabilities can be added directly)
-            action_probabilities += channel_probabilities
+    # # Standardize and evaluate probabilities for each channel
+    # for action in range(1, action_num + 1):
+    #     action_probabilities = np.zeros(X_test.shape[0])  # Initialize for this action
+    #     for channel in range(channel_num):
+    #         # Extract and standardize test data for the current channel
+    #         channel_test_data = X_test[
+    #             :, channel, :
+    #         ]  # Adjust slicing based on X_test dimensions
+    #         scaler = scalers_by_channel_action[action][channel]
+    #         channel_test_data_scaled = scaler.transform(channel_test_data)
 
-        # Store the total probability for this action
-        probabilities[:, action - 1] = action_probabilities
+    #         # Get GMM for this action and channel
+    #         gmm = gmms_by_channel_action[action][channel]
 
-    # Convert log probabilities to normal probabilities
-    probabilities = np.exp(probabilities)
+    #         # Compute probabilities for this channel
+    #         channel_probabilities = gmm.score_samples(channel_test_data_scaled)
 
-    # Normalize to get probabilities summing to 1 for each sample
-    probabilities = probabilities / probabilities.sum(axis=1, keepdims=True)
+    #         # Accumulate probabilities (log probabilities can be added directly)
+    #         action_probabilities += channel_probabilities
 
-    # Compute the action with the highest probability for each test sample
-    predicted_actions = (
-        np.argmax(probabilities, axis=1) + 1
-    )  # Add 1 to match action numbering
+    #     # Store the total probability for this action
+    #     probabilities[:, action - 1] = action_probabilities
 
-    # Now you can compare predicted_actions with y_test
-    print("Predicted actions:", predicted_actions)
-    print("Actual actions:", y_test)
+    # # Convert log probabilities to normal probabilities
+    # probabilities = np.exp(probabilities)
 
-    # Example of comparing predicted actions with the actual test labels
-    accuracy = np.mean(predicted_actions == y_test)
-    print(f"Accuracy: {accuracy * 100:.2f}%")
+    # # Normalize to get probabilities summing to 1 for each sample
+    # probabilities = probabilities / probabilities.sum(axis=1, keepdims=True)
+
+    # # Compute the action with the highest probability for each test sample
+    # predicted_actions = (
+    #     np.argmax(probabilities, axis=1) + 1
+    # )  # Add 1 to match action numbering
+
+    # # Now you can compare predicted_actions with y_test
+    # print("Predicted actions:", predicted_actions)
+    # print("Actual actions:", y_test)
+
+    # # Example of comparing predicted actions with the actual test labels
+    # accuracy = np.mean(predicted_actions == y_test)
+    # print(f"Accuracy: {accuracy * 100:.2f}%")
 
 
 if __name__ == "__main__":
