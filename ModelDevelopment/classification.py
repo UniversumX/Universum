@@ -12,16 +12,8 @@ from preprocessing import preprocess_person  # Import your preprocessing functio
 from scipy.stats import mode
 from sklearn.decomposition import PCA
 from typing import Dict
-
+from utils import *
 from dataclasses import dataclass
-
-
-@dataclass
-class Action:
-    action_value: int
-    text: str
-    audio: str
-    image: str
 
 
 def get_frequency_band_indices(frequencies, band_min, band_max):
@@ -69,54 +61,8 @@ def extract_features(eeg_data, channels, frequencies):
         features.append(epoch_features)  # Append features for the epoch
     return np.array(features)
 
-
-# Example of usage in load_data_and_labels
-# Assuming `frequencies` is an array of frequency values corresponding to the third dimension of eeg_data
-def load_data_and_labels(subject_id, visit_number, actions):
-    # Load preprocessed data
-    directory_path = f"../DataCollection/data/EEGdata/{subject_id}/{visit_number}/"
-    res = preprocess_person(
-        directory_path,
-        actions,
-        should_visualize=False,
-    )
-    eeg_feature_combined = []
-    accel_data_combined = []
-    action_data_combined = []
-    for eeg_feature, accel_data, action_data in res:
-        eeg_feature_combined.append(eeg_feature)
-        accel_data_combined.append(accel_data)
-        action_data_combined.append(action_data)
-
-    # Merge all arrays using np.concatenate
-    eeg_feature_combined = np.concatenate(eeg_feature_combined, axis=0)
-    accel_data_combined = np.concatenate(accel_data_combined, axis=0)
-    action_data_combined = np.concatenate(action_data_combined, axis=0)
-
-    # Print the number of epochs in eeg_data
-    num_epochs = len(eeg_feature_combined)
-    print(f"Number of epochs in EEG data: {num_epochs}")
-
-    # Print the number of entries in action_data
-    num_action_entries = len(action_data_combined)
-    print(f"Number of action data entries: {num_action_entries}")
-
-    # Extract the number of samples per epoch (from the last dimension of eeg_data)
-    # num_samples_per_epoch = eeg_feature.shape[-1]
-
-    # Fs = 256  # Sampling frequency in Hz
-
-    # Generate frequency values for positive frequencies only (assuming real-valued EEG data)
-
-    # frequencies = np.fft.rfftfreq(num_samples_per_epoch, d=1/Fs)
-
-    # Define channels
-    # channels_to_use = [0, 1, 2, 3, 4, 5, 6, 7]
-
-    X = eeg_feature_combined
-    y = action_data_combined  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
-
-    return X, y
+    # Example of usage in load_data_and_labels
+    # Assuming `frequencies` is an array of frequency values corresponding to the third dimension of eeg_data
 
     '''
 def load_multiple_trials(subject_id, visit_number, trial_numbers, actions):
@@ -162,7 +108,7 @@ def classify_eeg_data(subject_id, visit_number, actions):
     )
 
     # Instantiate model and train
-    model = SVC(kernel='rbf', C=1.0, gamma='scale')
+    model = SVC(kernel="rbf", C=1.0, gamma="scale")
     model.fit(X_train, y_train)
 
     # Determine accuraacy of model
@@ -171,9 +117,9 @@ def classify_eeg_data(subject_id, visit_number, actions):
     print(f"Accuracy: {accuracy:.2f}")
 
     # Save model to specific path
-    model_dir = f"ModelDevelopment/models/{subject_id}/{visit_number}"
+    model_dir = f"models/{subject_id}/{visit_number}"
     os.makedirs(model_dir, exist_ok=True)
-    model_path = os.path.join(model_dir, 'svm_model.joblib')
+    model_path = os.path.join(model_dir, "svm_model.joblib")
     joblib.dump(model, model_path)
     print(f"Model saved to: {model_path}")
 
@@ -301,7 +247,7 @@ if __name__ == "__main__":
     }
 
     # Example parameters (replace with actual values)
-    subject_id = "108"
+    subject_id = "110"
     visit_number = 1
 
     classify_eeg_data(subject_id, visit_number, actions)

@@ -14,6 +14,10 @@ from sklearn.metrics import (
 )
 from utils import *
 
+import matplotlib
+
+matplotlib.use("TkAgg")
+
 
 def validate_model(model, x, y, problem_type="classification"):
     """
@@ -100,11 +104,21 @@ def load_model(path, model_type):
     raise ValueError(f"Invalid model type: {model_type}")
 
 
+def visualize_model_classification(model, x):
+    y_pred = model.predict(x)
+
+    # Visualize the predictions
+    plt.scatter(np.arange(len(x)), y_pred, label="Predicted")
+    plt.xlabel("Index")
+    plt.ylabel("Predicted Value")
+    plt.show()
+
+
 if __name__ == "__main__":
     # Validate the model
-    model_path = "models/110/1/model.pkl"
+    model_path = "./models/110/1/svm_model.joblib"
     model = load_model(model_path, "svm")
-    subject_id = "108"
+    subject_id = "110"
     visit_number = "1"
     actions = {
         "left_elbow_flex": Action(
@@ -136,5 +150,8 @@ if __name__ == "__main__":
         ),
     }
     x, y = load_data_and_labels(subject_id, visit_number, actions)
-    print("Validating model {model_path} on subject {subject_id}, visit {visit_number}")
+    print(
+        f"Validating model {model_path} on subject {subject_id}, visit {visit_number}"
+    )
     validate_model(model, x, y, problem_type="classification")
+    visualize_model_classification(model, x)

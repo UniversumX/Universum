@@ -65,5 +65,10 @@ def load_data_and_labels(subject_id, visit_number, actions):
 
     X = eeg_feature_combined
     y = action_data_combined  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
+    X = X.reshape(X.shape[0] * X.shape[-1], X.shape[1] * X.shape[2])
+    y = y.flatten()
+
+    print("X shape:", X.shape)
+    print("y shape:", y.shape)
 
     return X, y
