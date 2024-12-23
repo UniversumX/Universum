@@ -20,13 +20,18 @@ def processresults(data): #used in ploting functions
 
     #get epoch information
     epoch_indices = np.repeat(np.arange(data.shape[0]), data.shape[1] * data.shape[3]) #possible source of error, flattening may not arrange epochs like this
-    print(epoch_indices.shape)
+    epoch_indices = epoch_indices % 4 + 1
     return fdata, epoch_indices
     
 # T-SNE
-def plotWithTSNE(data_path, actions):
+def plotWithTSNE(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
     data, epoch_indices = processresults(eeg_data)
+
+    if isolate:
+        indices = np.where(epoch_indices == action)[0]
+        data = data[indices]
+        epoch_indices = epoch_indices[indices]
     
     tsne = TSNE(n_components=2, perplexity=15, max_iter=1000, random_state=42) # change these values for different results
     tsne_embedding = tsne.fit_transform(data)
@@ -35,35 +40,57 @@ def plotWithTSNE(data_path, actions):
     plt.scatter(
         tsne_embedding[:, 0], tsne_embedding[:, 1], c=epoch_indices, cmap="viridis", s=10
     )
-    plt.colorbar(label="Epoch")
+    plt.colorbar(label="Action")
     plt.title(
-        f"t-SNE projection of FFT-transformed whitened data colored by epoch (action)"
+        f"t-SNE projection of preprocessed data colored by action"
     )
     plt.show()
 
 
 # UMAP
-def plotWithUMAP(data_path, actions): #input data path, eg "../DataCollection/data/105/1/1/" and actions
+def plotWithUMAP(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
     data, epoch_indices = processresults(eeg_data)
+
+    if isolate:
+        indices = np.where(epoch_indices == action)[0]
+        data = data[indices]
+        epoch_indices = epoch_indices[indices]
     
     reducer = umap.UMAP()
     embedding = reducer.fit_transform(data)
-    print(embedding.shape)
 
     plt.figure(figsize=(10, 8))
     plt.scatter(embedding[:, 0], embedding[:, 1], c=epoch_indices, cmap="viridis", s=10)
-    plt.colorbar(label="Epoch")
+    plt.colorbar(label="Action")
     plt.title(
-        f"UMAP projection of FFT-transformed whitened data colored by epoch (action)"
+        f"UMAP projection of preprocessed data colored by action"
     )
     plt.show()
 
+def fixData(data_path): #doesn't work, doesn't line up with accelerometer data
+    import os
+    import datetime
+    os.rename(data_path + "eeg_data_raw.csv", data_path + "old_eeg_data_raw.csv")
+    input_file = data_path + "old_eeg_data_raw.csv"
+    output_file = data_path + "eeg_data_raw.csv"
+
+    data = pd.read_csv(input_file, header=None)
+
+    columns = ["timestamp", "CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"]
+    data.columns = columns
+
+    reference_date = datetime.datetime(2024, 10, 17, 19, 39, 48, tzinfo=datetime.timezone.utc)
+    data["timestamp"] = data["timestamp"].apply(
+        lambda x: (reference_date + datetime.timedelta(seconds=x)).strftime("%Y-%m-%d %H:%M:%S.%f")
+    )
+
+    data.to_csv(output_file, index=False)
 
 # ------------------------------------------------------
 
 # Sample data
-eeg_data_path = f"../DataCollection/data/105/1/1/"
+eeg_data_path = f"../DataCollection/data/EEGdata/108/1/1/"
 
 from dataclasses import dataclass
 @dataclass
@@ -102,4 +129,4 @@ actions = {
     ),
 }
 
-plotWithTSNE(eeg_data_path, actions)
+plotWithUMAP(eeg_data_path, actions, False, 1)
