@@ -1,3 +1,4 @@
+from pickle import TRUE
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
@@ -240,12 +241,13 @@ def feature_extract(x):
             # deflate matrix
             cov -= eigval * np.outer(eigvec, eigvec)
         
-        components.append(np.array(eigvecs).T)
+        components.append(np.array(eigvecs))
         importance.append(np.array(eigvals).T)
     
     print(components[0].shape)
     print(importance[0].shape)
 
+    '''
      #graph eigenvalue
     graph_val = importance[0]
     plt.bar(np.arange(len(graph_val)), graph_val)
@@ -255,7 +257,7 @@ def feature_extract(x):
     plt.title("PCA chart")
 
     plt.show()
-    
+    '''
 
     '''
     a = num_frequencies * window_size # reused variable
@@ -306,8 +308,7 @@ def feature_extract(x):
 
             vecs_epoch.append(eigvec)
             vals_epoch.append(eigval)
-        # print(vals_epoch.shape)
-        # print(eigvals.shape)
+        
         eigvecs.append(vecs_epoch)
         eigvals.append(vals_epoch)
 
@@ -315,8 +316,33 @@ def feature_extract(x):
     eigvals = np.array(eigvals)
     '''
 
-    # print("eigenvectors:", eigvecs.shape)
-    # print("eigenvalues:", eigvals.shape)
+    # Combine eigvecs and eigvals for each epoch and channel
+    features = []
+    num_epochs = y.shape[0]
+    num_channels = y.shape[1]
+
+    for epoch_idx in range(num_epochs):  # Loop over epochs
+        epoch_features = []
+        for channel_idx in range(num_channels):  # Loop over channels
+            # Extract components (eigenvectors) and importance (eigenvalues)
+            eigvec_feature = components[channel_idx]  # Shape: (eigvec, num_components)
+            eigval_feature = importance[channel_idx]  # Shape: (eigval)
+
+            # Combine eigenvectors and eigenvalues
+            # Element-wise multiplication: scale each eigenvector by its corresponding eigenvalue
+            combined_feature = eigvec_feature * eigval_feature[:, np.newaxis]  # Shape: (eigvec_dim1, num_components)
+            
+            # Flatten the combined features for easier downstream processing
+            # combined_feature_flattened = combined_feature.flatten()  # Shape: (eigvec_dim1 * num_components,)
+            epoch_features.append(combined_feature)  # Store features for this channel
+        features.append(epoch_features)  # Store features for this epoch
+
+    # Convert features to a NumPy array
+    features = np.array(features)  # Shape: (num_epochs, num_channels, eigvec_dim1 * num_components)
+
+    print(f"Features shape: {features.shape}")  # (num_epochs, num_channels, eigvec_dim1 * num_components)
+    return features
+
 
 def power_iteration(A, num_simulations=1000, tol=1e-6):
     """
@@ -453,14 +479,15 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     print(f"Getting data from directory {directory_path}")
 
     eeg_data, accel_data, action_data = get_data_from_directory(directory_path)
+
     if eeg_data is None or accel_data is None or action_data is None:
         return None, None, None
-
+    
     # Fix the action data so if there are multiple actions of the same type after aech other, it removes those rows
     action_data = action_data.loc[
         (abs(action_data["action_value"] - action_data["action_value"].shift(1)) > 0)
     ].reset_index(drop=True)
-
+    
     # Get rid of the end collection action data
     action_data = action_data[
         action_data["action_value"] != actions["end_collection"].action_value
@@ -637,7 +664,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     # =======
 
     x = np.abs(x)  # take the abs of x, don't do anything goofy with imaginary numbers
-    feature_extract(x)
+    x = feature_extract(x)
 
     # stack the epochs together for PCA
     if should_visualize:
@@ -692,7 +719,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
 
     # augment action_data so it repeats over the columns
     # TODO: fact check this to see if it is correct
-    action_data = np.tile(np.array([action_data]).T, (1, x.shape[-1]))
+    # action_data = np.tile(np.array([action_data]).T, (1, x.shape[-1]))
     # x = x.reshape(x.shape[1], x.shape[2], x.shape[3] * x.shape[0])
     # action_data = action_data.flatten()
     return x, accel_data, action_data
