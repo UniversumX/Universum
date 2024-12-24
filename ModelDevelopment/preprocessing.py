@@ -129,6 +129,19 @@ def get_data_from_directory(data_directory_path: str):
         eeg_data = pd.read_csv(eeg_file)
         accel_data = pd.read_csv(accel_file)
         action_data = pd.read_csv(action_file)
+
+        # do a check to see if the eeg_data is fucked up
+        # basically there was a code change that didn't save the timestamp of eeg data, but instead saved it from an arbitrary start time
+        # so we fix that
+        if eeg_data.columns[0] == "arbitrary_time":
+            eeg_data["arbitrary_time"] = pd.to_datetime(
+                accel_data["timestamp"].iloc[0]
+            ) + pd.to_timedelta(
+                (eeg_data["arbitrary_time"] - eeg_data["arbitrary_time"].iloc[0]),
+                unit="s",
+            )
+            eeg_data = eeg_data.rename(columns={"arbitrary_time": "timestamp"})
+
     except Exception as e:
         logger.warning(f"Error reading CSV files in {data_directory_path}: {e}")
         return None, None, None
@@ -140,7 +153,11 @@ def convert_timestamp_to_time_since_last_epoch(df):
     """
     Converts the timestamp to time since the last epoch
     """
-    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype('int64') / 10**9
+    # if the df already has timestamp in dattime object then don't convert it
+    if df["timestamp"].dtype == "datetime64[ns]":
+        df["timestamp"] = df["timestamp"].astype("int64") / 10**9
+        return df
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype("int64") / 10**9
     return df
 
 
@@ -148,7 +165,9 @@ def align_data_to_experiment_start_and_end_time(df, start_time: float, end_time:
     """
     Aligns the data to the experiment start and end time
     """
-    assert end_time > start_time
+    assert (
+        end_time > start_time
+    ), f"End time must be greater than start time, {end_time} > {start_time}"
     return df[(df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)]
 
 
@@ -180,6 +199,7 @@ def preprocess_person(
         res.append([x, accel_data, action_data])
     return res
 
+
 def feature_extract(x):
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
 
@@ -191,7 +211,7 @@ def feature_extract(x):
     # sweeping window
     i = 0
     while i <= num_samples - window_size:
-        y.append(x[:, :, :, i: i+window_size])
+        y.append(x[:, :, :, i : i + window_size])
         i += window_offset
     y = np.stack(y, axis=4)
     
@@ -275,26 +295,26 @@ def feature_extract(x):
             print(y_flattened.shape)
 
             # PCA
-            y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+            y_standardized = (
+                y_flattened - np.mean(y_flattened, axis=0)
+            ) / y_flattened.std(axis=0)
             cov = np.cov(y_standardized, rowvar=False)
             eigval, eigvec = np.linalg.eigh(cov)
-            sorted_indices= np.argsort(eigval)[::-1]
+            sorted_indices = np.argsort(eigval)[::-1]
             eigval = eigval[sorted_indices]
             eigvec = eigvec[:, sorted_indices]
 
             vecs_epoch.append(eigvec)
             vals_epoch.append(eigval)
-        #print(vals_epoch.shape)
-        #print(eigvals.shape)
+        # print(vals_epoch.shape)
+        # print(eigvals.shape)
         eigvecs.append(vecs_epoch)
         eigvals.append(vals_epoch)
-    
+
     eigvecs = np.array(eigvecs)
     eigvals = np.array(eigvals)
     '''
 
-    #TODO: project data onto eigenspace
-    
     # print("eigenvectors:", eigvecs.shape)
     # print("eigenvalues:", eigvals.shape)
 
@@ -334,50 +354,51 @@ def power_iteration(A, num_simulations=1000, tol=1e-6):
 
 def snr(signal):
     signal_power = np.mean(signal**2)
-    
-    #assume noise is deviation from mean
+
+    # assume noise is deviation from mean
     noise = signal - np.mean(signal)
     noise_power = np.mean(noise**2)
-    
+
     snr = 10 * np.log10(signal_power / noise_power)
     return snr
+
 
 def compute_snr(eeg_data):
     num_epochs, num_channels, num_samples = eeg_data.shape
     snr_values = np.zeros((num_epochs, num_channels))
-    
+
     # Loop through each epoch and each channel
     for epoch in range(num_epochs):
         for channel in range(num_channels):
             snr_values[epoch, channel] = snr(eeg_data[epoch, channel])
-    
+
     return snr_values
 
 
 def combine_snrs(snr_values):
     # Convert SNR from dB to linear scale
-    snr_linear = 10**(snr_values / 10)
+    snr_linear = 10 ** (snr_values / 10)
     # Compute the average of the linear SNRs
     avg_snr_linear = np.mean(snr_linear)
     # Convert the average linear SNR back to dB
     combined_snr_db = 10 * np.log10(avg_snr_linear)
-    
+
     return combined_snr_db
 
 
 def wiener_filter(x, type, mysize=None, noise=None):
-    #1. direct
-    #2. by channel
-    #3. by epoch
-    #4. by epoch and channel
+    # 1. direct
+    # 2. by channel
+    # 3. by epoch
+    # 4. by epoch and channel
     num_epochs, num_channels, num_samples = x.shape
-    if (type == 1):
+    if type == 1:
         # Combine everything
         combined = x.reshape(-1)
         filtered_combined = signal.wiener(combined, mysize=mysize, noise=noise)
         filtered = filtered_combined.reshape(x.shape)
         return filtered
-    elif (type == 2):
+    elif type == 2:
         filtered = np.zeros_like(x)
         for channel in range(num_channels):
             # Combine all epochs for this channel into one continuous signal
@@ -385,7 +406,7 @@ def wiener_filter(x, type, mysize=None, noise=None):
             filtered_channel = signal.wiener(combined, mysize=mysize, noise=noise)
             filtered[:, channel, :] = filtered_channel.reshape(num_epochs, num_samples)
         return filtered
-    elif (type == 3):
+    elif type == 3:
         filtered = np.zeros_like(x)
         for epoch in range(num_epochs):
             combined = x[epoch, :, :].reshape(-1)
@@ -393,13 +414,16 @@ def wiener_filter(x, type, mysize=None, noise=None):
             filtered_epoch = signal.wiener(combined, mysize=mysize, noise=noise)
             filtered[epoch, :, :] = filtered_epoch.reshape(num_channels, num_samples)
         return filtered
-    else: #type 4
+    else:  # type 4
         filtered = np.copy(x)
         for epoch in range(num_epochs):
             for channel in range(num_channels):
                 # Apply filter to each channel of each epoch
-                filtered[epoch, channel] = signal.wiener(x[epoch, channel], mysize=mysize, noise=noise)
+                filtered[epoch, channel] = signal.wiener(
+                    x[epoch, channel], mysize=mysize, noise=noise
+                )
         return filtered
+
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
@@ -426,6 +450,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     sampling_frequency = 256  # From the documentation
     window_size = 96
     percent_overlap = 0.95
+    print(f"Getting data from directory {directory_path}")
 
     eeg_data, accel_data, action_data = get_data_from_directory(directory_path)
     if eeg_data is None or accel_data is None or action_data is None:
@@ -474,34 +499,36 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     # Time align the data by linearly interpolating the accelerometer data
     # Create column names (mne Raw Array needs this)
     ch_names = eeg_data.columns[1:].tolist()
+    assert (
+        "timestamp" not in ch_names
+    ), f"timestamp is in the names of columns we think is eeg data, timestamp should be the first column not the last...\nch_names:{ch_names}"
     ch_types = ["eeg"] * len(ch_names)
 
-### TODO:
-# Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
-# Create events from action_data
-# events = []
-# for index, row in action_data.iterrows():
-#     sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
-#     action_value = int(row["action_value"])
-#     events.append([sample, 0, action_value])
-# #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
-
-
+    ### TODO:
+    # Read the action_data.csv and use mne events to label specific events in the data, incorporate that with the `raw` variable
+    # Create events from action_data
     events = []
-    eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
-    action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
-    last_eeg_timestamp = eeg_data["timestamp"].max()
-    threshold = pd.Timedelta(seconds=0.1)
-
     for index, row in action_data.iterrows():
         sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
         action_value = int(row["action_value"])
-        # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
-        if row["timestamp"] > last_eeg_timestamp + threshold:
-            print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
         events.append([sample, 0, action_value])
+    # #TODO: put an assert message in here that if the action_data timestamp is too far past the last eeg_data timestamp then it console prints a message
 
-    events = np.array(events)
+    # events = []
+    # eeg_data["timestamp"] = pd.to_datetime(eeg_data["timestamp"])
+    # action_data["timestamp"] = pd.to_datetime(action_data["timestamp"])
+    # last_eeg_timestamp = eeg_data["timestamp"].max()
+    # threshold = pd.Timedelta(seconds=0.1)
+    #
+    # for index, row in action_data.iterrows():
+    #     sample = np.argmin(np.abs(eeg_data["timestamp"] - row["timestamp"]))
+    #     action_value = int(row["action_value"])
+    #     # Check if the action_data timestamp is too far past the last eeg_data timestamp (0.1 seconds)
+    #     if row["timestamp"] > last_eeg_timestamp + threshold:
+    #         print(f"Warning: Action data timestamp {row['timestamp']} is more than {threshold} past the last EEG timestamp {last_eeg_timestamp}")
+    #     events.append([sample, 0, action_value])
+    #
+    # events = np.array(events)
 
     event_dict = {
         action_name: action.action_value
@@ -520,6 +547,8 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     cutoff_min = 1  # Cut off frequency for band filter
     raw.filter(l_freq=cutoff_min, h_freq=cutoff_max, fir_design="firwin")
 
+    pd.set_option("display.precision", 15)  # we freaky like that
+
     # Epoch the data so that every epoch is a trial
     epochs = mne.Epochs(
         raw,
@@ -535,10 +564,14 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     y = epochs.events[:-1]  # the last event of the data
     num_epochs, num_channels, num_samples = x.shape
 
-    #filter
+    # filter
     snr_before_filtering = compute_snr(x)
-    x = wiener_filter(x, 1) # toggle second arg [1-4] (works marginally better with 1-3)
-    snr_after_filtering = compute_snr(x) # evaluating filter performance with signal to noise ratio
+    x = wiener_filter(
+        x, 1
+    )  # toggle second arg [1-4] (works marginally better with 1-3)
+    snr_after_filtering = compute_snr(
+        x
+    )  # evaluating filter performance with signal to noise ratio
     print(f"Combined SNR Before Filtering: {combine_snrs(snr_before_filtering):.2f} dB")
     print(f"Combined SNR After Filtering: {combine_snrs(snr_after_filtering):.2f} dB")
 
@@ -574,7 +607,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         2,
         x,
     )
-    
+
     # get rid of frequencies above cutoff_max frequency
     top_index = int(np.ceil(x.shape[2] / ((sampling_frequency / 2) / cutoff_max)))
     x = x[:, :, :top_index, :]
@@ -583,26 +616,27 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
     # <<<<<<< HEAD
 
-        # # do a spectogram of the data
-        # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
-        # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
-        # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
-        # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
-        # print(x.shape)
-        # for channel in range(x.shape[0]):
-        #     # so this plots the spectogram, it should be:
-        #     plt.figure()
-        #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-        #     plt.title(f"Spectrogram of Channel {channel}")
-        #     plt.ylabel("Frequency * Epoch [Hz]")
-        #     plt.xlabel("Time [s]")
-        #     plt.show()
-        #
-        # features = PCA(n_components=2).fit_transform(stft_data.T)
-        # plt.scatter(features[:, 0], features[:, 1])
-        # plt.show()
+    # # do a spectogram of the data
+    # # okay, so basically we gotta decide how to do PCA on this dataset, if we make the dimension of the PCA be frequencies * channels then running PCA
+    # # then PCA will find components for each individual channel, but if we instead have the dimension just be frequencies, then PCA will be finding components
+    # # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
+    # # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
+    # print(x.shape)
+    # for channel in range(x.shape[0]):
+    #     # so this plots the spectogram, it should be:
+    #     plt.figure()
+    #     plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+    #     plt.title(f"Spectrogram of Channel {channel}")
+    #     plt.ylabel("Frequency * Epoch [Hz]")
+    #     plt.xlabel("Time [s]")
+    #     plt.show()
+    #
+    # features = PCA(n_components=2).fit_transform(stft_data.T)
+    # plt.scatter(features[:, 0], features[:, 1])
+    # plt.show()
     # =======
 
+    x = np.abs(x)  # take the abs of x, don't do anything goofy with imaginary numbers
     feature_extract(x)
 
     # stack the epochs together for PCA
@@ -619,40 +653,49 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     # for the channels at the same time, so the dimension of the eigenvectors will be lower, and we will get less characteristics of each
     # channel. tbh idk what is the best to do. intuitively, it would be better for PCA dimension to be frequencies * channels if we had more data.
     print(x.shape)
-#     for channel in range(x.shape[0]):
-#         # so this plots the spectogram, it should be:
-#         plt.figure()
-#         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
-#         plt.title(f"Spectrogram of Channel {channel}")
-#         plt.ylabel("Frequency * Epoch [Hz]")
-#         plt.xlabel("Time [s]")
-#         plt.show()
-# # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
+    #     for channel in range(x.shape[0]):
+    #         # so this plots the spectogram, it should be:
+    #         plt.figure()
+    #         plt.imshow(10 * np.log10(np.abs(x)).T, aspect="auto", origin="lower")
+    #         plt.title(f"Spectrogram of Channel {channel}")
+    #         plt.ylabel("Frequency * Epoch [Hz]")
+    #         plt.xlabel("Time [s]")
+    #         plt.show()
+    # # >>>>>>> 0c0e3e5773c816639bd03e1569b2af7206b4f5ab
 
-#     features = PCA(n_components=2).fit_transform(stft_data.T)
+    #     features = PCA(n_components=2).fit_transform(stft_data.T)
 
-#     plt.scatter(features[:, 0], features[:, 1])
-#     plt.show()
+    #     plt.scatter(features[:, 0], features[:, 1])
+    #     plt.show()
 
-#     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
-#     ica.fit(whitened_raw)
-#     ica.plot_sources(whitened_raw, show_scrollbars=False)
-#     plt.show()
+    #     ica = mne.preprocessing.ICA(n_components=8, random_state=97, max_iter=800)
+    #     ica.fit(whitened_raw)
+    #     ica.plot_sources(whitened_raw, show_scrollbars=False)
+    #     plt.show()
 
-#     def print_relative_importance_of_ICA_features(ica):
-#         for i, component in enumerate(ica.mixing_matrix_):
-#             explained_var_ratio = ica.get_explained_variance_ratio(
-#                 whitened_raw, components=[i], ch_type="eeg"
-#             )
-#             print(
-#                 f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
-#             )
+    #     def print_relative_importance_of_ICA_features(ica):
+    #         for i, component in enumerate(ica.mixing_matrix_):
+    #             explained_var_ratio = ica.get_explained_variance_ratio(
+    #                 whitened_raw, components=[i], ch_type="eeg"
+    #             )
+    #             print(
+    #                 f"Fraction of variance in EEG signal explained by {i}th component: {explained_var_ratio['eeg']}"
+    #             )
 
-#     print_relative_importance_of_ICA_features(ica)
+    #     print_relative_importance_of_ICA_features(ica)
 
-#     sources = ica.get_sources(whitened_raw).get_data()
-#     first_component_signal = sources[0, :]
-    return x, accel_data, action_data["action_value"]
+    #     sources = ica.get_sources(whitened_raw).get_data()
+    #     first_component_signal = sources[0, :]
+
+    # output the d
+    action_data = action_data["action_value"].to_numpy()
+
+    # augment action_data so it repeats over the columns
+    # TODO: fact check this to see if it is correct
+    action_data = np.tile(np.array([action_data]).T, (1, x.shape[-1]))
+    # x = x.reshape(x.shape[1], x.shape[2], x.shape[3] * x.shape[0])
+    # action_data = action_data.flatten()
+    return x, accel_data, action_data
 
 
 if __name__ == "__main__":
