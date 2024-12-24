@@ -12,3 +12,4 @@ universum/
 poetry.lock
 pyproject.toml
 .venv
+venv

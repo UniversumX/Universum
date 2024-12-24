@@ -185,7 +185,7 @@ def feature_extract(x):
 
     # set window size and offset
     window_size = 10
-    window_offset = 1
+    window_offset = 5
     y = []
 
     # sweeping window
@@ -195,9 +195,74 @@ def feature_extract(x):
         i += window_offset
     y = np.stack(y, axis=4)
     
-    print("windowed dimensions:", y.shape) # num_epochs, num_channels, num_frequencies, window_size, num_window
-    print("original dimensions: ", x.shape)
+    # print("windowed dimensions:", y.shape) # num_epochs, num_channels, num_frequencies, window_size, num_window
+    # print("original dimensions: ", x.shape)
 
+    a = num_frequencies * window_size
+    components = []
+    importance = []
+    num_components = 10
+    for k in range(y.shape[1]):
+        y_1 = y[:, k, :, :, :]
+        y_flattened = y_1.reshape(-1, y_1.shape[3]).transpose()
+
+        eigvecs = []
+        eigvals = []
+        y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+        print("Calculating COV")
+        cov = np.cov(y_standardized, rowvar=False)
+        for _ in range(num_components):
+            print("Performing power iteration")
+            eigvec, eigval = power_iteration(cov, num_simulations=200)
+            eigvecs.append(eigvec)
+            eigvals.append(eigval)
+
+            # deflate matrix
+            cov -= eigval * np.outer(eigvec, eigvec)
+        
+        components.append(np.array(eigvecs).T)
+        importance.append(np.array(eigvals).T)
+    
+    print(components[0].shape)
+    print(importance[0].shape)
+
+     #graph eigenvalue
+    graph_val = importance[0]
+    plt.bar(np.arange(len(graph_val)), graph_val)
+
+    plt.xlabel("Eigenvalues")
+    plt.ylabel("Weight")
+    plt.title("PCA chart")
+
+    plt.show()
+    
+
+    '''
+    a = num_frequencies * window_size # reused variable
+    eigvecs = []
+    eigvals = []
+    for k in range(y.shape[1]):
+        y_1 = y[:, k, :, :, :]
+        y_flattened = y_1.reshape(-1, y_1.shape[3]).transpose()
+        print(y_flattened.shape)
+
+        # PCA
+        y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+        cov = np.cov(y_standardized, rowvar=False)
+        eigval, eigvec = np.linalg.eigh(cov)
+        sorted_indices= np.argsort(eigval)[::-1]
+        eigval = eigval[sorted_indices]
+        eigvec = eigvec[:, sorted_indices]
+        eigvecs.append(eigvec)
+        eigvals.append(eigval)
+    
+    eigvecs = np.array(eigvecs)
+    eigvals = np.array(eigvals)
+    print(eigvecs.shape)
+    print(eigvals.shape)
+    '''
+
+    '''
     a = num_frequencies * window_size # reused variable
     eigvecs = []
     eigvals = []
@@ -207,6 +272,7 @@ def feature_extract(x):
         for k in range(y.shape[1]):
             y_1 = y[j][k]
             y_flattened = y_1.reshape(-1, y_1.shape[2]).transpose()
+            print(y_flattened.shape)
 
             # PCA
             y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
@@ -225,22 +291,46 @@ def feature_extract(x):
     
     eigvecs = np.array(eigvecs)
     eigvals = np.array(eigvals)
-
-    ''' #graph eigenvalue
-    graph_val = eigvals[0][3]
-    plt.bar(np.arange(len(graph_val)), graph_val)
-
-    plt.xlabel("Eigenvalues")
-    plt.ylabel("Weight")
-    plt.title("PCA chart")
-
-    plt.show()
     '''
 
     #TODO: project data onto eigenspace
     
     # print("eigenvectors:", eigvecs.shape)
     # print("eigenvalues:", eigvals.shape)
+
+def power_iteration(A, num_simulations=1000, tol=1e-6):
+    """
+    Performs power iteration to find the principal eigenvector of matrix A.
+    
+    Args:
+        A (numpy.ndarray): Symmetric matrix (e.g., covariance matrix).
+        num_simulations (int): Number of iterations for convergence.
+        tol (float): Tolerance for convergence.
+
+    Returns:
+        eigenvector (numpy.ndarray): Principal eigenvector.
+        eigenvalue (float): Corresponding eigenvalue.
+    """
+    # Random initialization of the eigenvector
+    b_k = np.random.rand(A.shape[1])
+    b_k = b_k / np.linalg.norm(b_k)  # Normalize initial vector
+
+    for _ in range(num_simulations):
+        # Multiply by the matrix
+        b_k1 = np.dot(A, b_k)
+        
+        # Normalize the resulting vector
+        b_k1_norm = np.linalg.norm(b_k1)
+        b_k1 = b_k1 / b_k1_norm
+
+        # Check for convergence
+        if np.linalg.norm(b_k - b_k1) < tol:
+            break
+        
+        b_k = b_k1
+
+    eigenvalue = np.dot(b_k.T, np.dot(A, b_k))  # Rayleigh quotient for eigenvalue
+    return b_k, eigenvalue
 
 def snr(signal):
     signal_power = np.mean(signal**2)
@@ -610,7 +700,7 @@ if __name__ == "__main__":
     subject_id = 105
     visit_number = 1
     res = preprocess_person(
-        f"../DataCollection/data/{subject_id}/{visit_number}/",
+        f"../DataCollection/EEGData/data/{subject_id}/{visit_number}/",
         actions,
         should_visualize=False,
     )
