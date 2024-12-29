@@ -11,6 +11,7 @@ from scipy.stats import mode
 from sklearn.decomposition import PCA
 from typing import Dict
 
+from collections import Counter
 from dataclasses import dataclass
 
 
@@ -65,10 +66,55 @@ def load_data_and_labels(subject_id, visit_number, actions):
 
     X = eeg_feature_combined
     y = action_data_combined  # Assuming action_data contains "action_value" column with labels 1, 2, 3, 4
+    # change the labels
     X = X.reshape(X.shape[0] * X.shape[-1], X.shape[1] * X.shape[2])
     y = y.flatten()
+
+    # class_embalance = measure_class_imbalance(y)
+    # print("Class imbalance:", class_embalance)
+    # exit()
+
+    # class balance
+
+    # y = np.array(y > 2, dtype=int)
+    # print(y)
+    # exit()
 
     print("X shape:", X.shape)
     print("y shape:", y.shape)
 
     return X, y
+
+
+def measure_class_imbalance(labels):
+    """
+    Measures class distribution and imbalance in an array of labels.
+
+    Args:
+        labels (array-like): Array of class labels (e.g., [0, 1, 0, 2, 1, 1, 2]).
+
+    Returns:
+        dict: Contains class counts, proportions, and imbalance ratio.
+    """
+    # Count occurrences of each class
+    label_counts = Counter(labels)
+    total_samples = len(labels)
+
+    # Calculate proportions
+    class_proportions = {
+        cls: count / total_samples for cls, count in label_counts.items()
+    }
+
+    # Imbalance ratio: ratio of most frequent to least frequent class
+    max_count = max(label_counts.values())
+    min_count = min(label_counts.values())
+    imbalance_ratio = max_count / min_count if min_count > 0 else float("inf")
+
+    # Combine results
+    results = {
+        "class_counts": dict(label_counts),
+        "class_proportions": class_proportions,
+        "imbalance_ratio": imbalance_ratio,
+    }
+
+    return results

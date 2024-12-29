@@ -12,6 +12,7 @@ from scipy import stats
 from scipy import integrate
 from scipy import signal
 from sklearn.decomposition import PCA
+from sklearn.decomposition import KernelPCA
 import argparse
 
 
@@ -201,70 +202,61 @@ def preprocess_person(
 
 
 def feature_extract(x):
+    """
+    Perform feature extraction with PCA on the input data using sliding windows.
+
+    Args:
+        x (numpy.ndarray): Input data of shape (num_epochs, num_channels, num_frequencies, num_samples).
+
+    Returns:
+        numpy.ndarray: PCA-transformed data of shape (num_epochs, num_channels, num_windows, num_components).
+    """
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
 
-    # set window size and offset
-    window_size = 10
-    window_offset = 1
-    y = []
+    # Set window size and offset
+    window_size = 20
+    window_offset = 2
+    transformed_data = []
 
-    # sweeping window
+    # Generate sliding windows
+    windows = []
     i = 0
     while i <= num_samples - window_size:
-        y.append(x[:, :, :, i : i + window_size])
+        windows.append(x[:, :, :, i : i + window_size])
         i += window_offset
-    y = np.stack(y, axis=4)
+    windows = np.stack(windows, axis=4)  # Add window axis
+    num_windows = windows.shape[4]
 
     print(
-        "windowed dimensions:", y.shape
-    )  # num_epochs, num_channels, num_frequencies, window_size, num_window
-    print("original dimensions: ", x.shape)
+        "Windowed dimensions:", windows.shape
+    )  # Shape: (num_epochs, num_channels, num_frequencies, window_size, num_windows)
+    print("Original dimensions:", x.shape)
 
-    a = num_frequencies * window_size  # reused variable
-    eigvecs = []
-    eigvals = []
-    for j in range(y.shape[0]):
-        vecs_epoch = []
-        vals_epoch = []
-        for k in range(y.shape[1]):
-            y_1 = y[j][k]
-            y_flattened = y_1.reshape(-1, y_1.shape[2]).transpose()
+    # Reshape and perform PCA for each epoch and channel
+    for epoch_idx in range(num_epochs):
+        epoch_data = []
+        for channel_idx in range(num_channels):
+            # Extract windows for this epoch and channel
+            windowed_data = windows[epoch_idx, channel_idx]
+            reshaped_data = windowed_data.reshape(
+                num_frequencies * window_size, num_windows
+            ).T
 
-            # PCA
-            y_standardized = (
-                y_flattened - np.mean(y_flattened, axis=0)
-            ) / y_flattened.std(axis=0)
-            cov = np.cov(y_standardized, rowvar=False)
-            eigval, eigvec = np.linalg.eigh(cov)
-            sorted_indices = np.argsort(eigval)[::-1]
-            eigval = eigval[sorted_indices]
-            eigvec = eigvec[:, sorted_indices]
+            # Apply PCA
+            pca = PCA()
+            pca_transformed = pca.fit_transform(
+                reshaped_data
+            )  # Shape: (num_windows, num_components)
 
-            vecs_epoch.append(eigvec)
-            vals_epoch.append(eigval)
-        # print(vals_epoch.shape)
-        # print(eigvals.shape)
-        eigvecs.append(vecs_epoch)
-        eigvals.append(vals_epoch)
+            epoch_data.append(pca_transformed)
+        transformed_data.append(epoch_data)
 
-    eigvecs = np.array(eigvecs)
-    eigvals = np.array(eigvals)
+    transformed_data = np.array(transformed_data)
+    print(
+        "Transformed data dimensions:", transformed_data.shape
+    )  # (num_epochs, num_channels, num_windows, num_components)
 
-    """ #graph eigenvalue
-    graph_val = eigvals[0][3]
-    plt.bar(np.arange(len(graph_val)), graph_val)
-
-    plt.xlabel("Eigenvalues")
-    plt.ylabel("Weight")
-    plt.title("PCA chart")
-
-    plt.show()
-    """
-
-    # TODO: project data onto eigenspace
-
-    # print("eigenvectors:", eigvecs.shape)
-    # print("eigenvalues:", eigvals.shape)
+    return transformed_data
 
 
 def snr(signal):
@@ -552,7 +544,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     # =======
 
     x = np.abs(x)  # take the abs of x, don't do anything goofy with imaginary numbers
-    feature_extract(x)
+    x = feature_extract(x)
 
     # stack the epochs together for PCA
     if should_visualize:

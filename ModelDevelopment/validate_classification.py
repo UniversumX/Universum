@@ -50,19 +50,19 @@ def validate_model(model, x, y, problem_type="classification"):
         print(conf_matrix)
 
         # ROC Curve
-        if len(np.unique(y)) == 2:  # Binary classification
-            y_prob = model.predict_proba(x)[:, 1]
-            fpr, tpr, _ = roc_curve(y, y_prob)
-            roc_auc = auc(fpr, tpr)
-            plt.figure()
-            plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {roc_auc:.2f})")
-            plt.plot([0, 1], [0, 1], "k--", label="Random Guess")
-            plt.xlabel("False Positive Rate")
-            plt.ylabel("True Positive Rate")
-            plt.title("ROC Curve")
-            plt.legend()
-            plt.show()
-
+        # if len(np.unique(y)) == 2:  # Binary classification
+        #     y_prob = model.predict_proba(x)[:, 1]
+        #     fpr, tpr, _ = roc_curve(y, y_prob)
+        #     roc_auc = auc(fpr, tpr)
+        #     plt.figure()
+        #     plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {roc_auc:.2f})")
+        #     plt.plot([0, 1], [0, 1], "k--", label="Random Guess")
+        #     plt.xlabel("False Positive Rate")
+        #     plt.ylabel("True Positive Rate")
+        #     plt.title("ROC Curve")
+        #     plt.legend()
+        #     plt.show()
+        #
     elif problem_type == "regression":
         # MSE, MAE, R2 Score
         metrics["mse"] = mean_squared_error(y, y_pred)
