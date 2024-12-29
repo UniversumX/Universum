@@ -1,3 +1,4 @@
+from pickle import TRUE
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
@@ -360,6 +361,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     print(f"Getting data from directory {directory_path}")
 
     eeg_data, accel_data, action_data = get_data_from_directory(directory_path)
+
     if eeg_data is None or accel_data is None or action_data is None:
         return None, None, None
 
@@ -599,7 +601,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
 
     # augment action_data so it repeats over the columns
     # TODO: fact check this to see if it is correct
-    action_data = np.tile(np.array([action_data]).T, (1, x.shape[-1]))
+    # action_data = np.tile(np.array([action_data]).T, (1, x.shape[-1]))
     # x = x.reshape(x.shape[1], x.shape[2], x.shape[3] * x.shape[0])
     # action_data = action_data.flatten()
     return x, accel_data, action_data
