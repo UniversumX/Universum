@@ -8,3 +8,8 @@ node_modules/
 # data/
 .DS_Store
 *.nix
+universum/
+poetry.lock
+pyproject.toml
+.venv
+venv

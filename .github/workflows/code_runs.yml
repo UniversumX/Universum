@@ -1,0 +1,27 @@
+name: Python File Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check-python-files:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Check Python files
+      run: |
+        for file in $(find . -name '*.py'); do
+            echo "Checking $file"
+            python $file
+        done
