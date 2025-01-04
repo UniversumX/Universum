@@ -10,28 +10,31 @@ import numpy as np
 # dimension reduction functions
 
 # process data
-def processresults(data): #used in ploting functions
+def processresults(data, freq_range): #used in ploting functions
+    ## Isolate desired frequency bands
+    if freq_range:
+        data = data[:, :, freq_range, :]
+    
+    print(data.shape)
+        
     ## convert to power to avoid imaginary values
     data = np.abs(data) ** 2
 
     ## flatten data
     fdata = np.transpose(data, axes=(0, 1, 3, 2))
-    fdata = fdata.reshape(-1, 18)
+    fdata = fdata.reshape(-1, data.shape[2])
+    print(fdata.shape)
 
     #get epoch information
     epoch_indices = np.repeat(np.arange(data.shape[0]), data.shape[1] * data.shape[3]) #possible source of error, flattening may not arrange epochs like this
     epoch_indices = epoch_indices % 4 + 1
+    print(epoch_indices.shape)
     return fdata, epoch_indices
     
 # T-SNE
-def plotWithTSNE(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
+def plotWithTSNE(data_path, actions, freq_range=None): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
-    data, epoch_indices = processresults(eeg_data)
-
-    if isolate:
-        indices = np.where(epoch_indices == action)[0]
-        data = data[indices]
-        epoch_indices = epoch_indices[indices]
+    data, epoch_indices = processresults(eeg_data, freq_range)
     
     tsne = TSNE(n_components=2, perplexity=15, max_iter=1000, random_state=42) # change these values for different results
     tsne_embedding = tsne.fit_transform(data)
@@ -48,14 +51,9 @@ def plotWithTSNE(data_path, actions, isolate, action): #input data path, eg "../
 
 
 # UMAP
-def plotWithUMAP(data_path, actions, isolate, action): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
+def plotWithUMAP(data_path, actions, freq_range=None): #input data path, eg "../DataCollection/data/105/1/1/" actions done, boolean - whether or not to isolate action, which action to isolate
     eeg_data, acell_data, action_data = pp.preprocess(data_path, actions, False)
-    data, epoch_indices = processresults(eeg_data)
-
-    if isolate:
-        indices = np.where(epoch_indices == action)[0]
-        data = data[indices]
-        epoch_indices = epoch_indices[indices]
+    data, epoch_indices = processresults(eeg_data, freq_range)
     
     reducer = umap.UMAP()
     embedding = reducer.fit_transform(data)
@@ -90,7 +88,7 @@ def fixData(data_path): #doesn't work, doesn't line up with accelerometer data
 # ------------------------------------------------------
 
 # Sample data
-eeg_data_path = f"../DataCollection/data/EEGdata/108/1/1/"
+eeg_data_path = f"../DataCollection/data/EEGdata/105/1/1/"
 
 from dataclasses import dataclass
 @dataclass
@@ -129,4 +127,6 @@ actions = {
     ),
 }
 
-plotWithUMAP(eeg_data_path, actions, False, 1)
+alpha_band = slice(1, 2)
+
+plotWithUMAP(eeg_data_path, actions, alpha_band)
