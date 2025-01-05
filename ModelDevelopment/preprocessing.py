@@ -383,10 +383,7 @@ def feature_extract(x):
     plt.tight_layout()
     plt.show()'''
     
-    #TODO: project data onto eigenspace
-    
-    # print("eigenvectors:", eigvecs.shape)
-    # print("eigenvalues:", eigvals.shape)
+    return pcs, evs
 
 def randomized_svd(A, k, n_oversamples=10, n_iter=5, random_state=None):
     m, n = A.shape
@@ -719,7 +716,7 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
         # plt.show()
     # =======
 
-    feature_extract(x)
+    x_prime, components = feature_extract(x)
 
     # stack the epochs together for PCA
     if should_visualize:
