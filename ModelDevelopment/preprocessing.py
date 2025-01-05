@@ -11,7 +11,7 @@ from loguru import logger
 from scipy import stats
 from scipy import integrate
 from scipy import signal
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
 import argparse
 
 
@@ -184,8 +184,8 @@ def feature_extract(x):
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
 
     # set window size and offset
-    window_size = 10
-    window_offset = 5
+    window_size = 15
+    window_offset = 2
     y = []
 
     # sweeping window
@@ -202,6 +202,8 @@ def feature_extract(x):
     components = []
     importance = []
     num_components = 10
+
+    '''
     for k in range(y.shape[1]):
         y_1 = y[:, k, :, :, :]
         y_flattened = y_1.reshape(-1, y_1.shape[3]).transpose()
@@ -222,7 +224,7 @@ def feature_extract(x):
         
         components.append(np.array(eigvecs).T)
         importance.append(np.array(eigvals).T)
-    
+
     print(components[0].shape)
     print(importance[0].shape)
 
@@ -235,7 +237,7 @@ def feature_extract(x):
     plt.title("PCA chart")
 
     plt.show()
-    
+    '''
 
     '''
     a = num_frequencies * window_size # reused variable
@@ -293,11 +295,125 @@ def feature_extract(x):
     eigvals = np.array(eigvals)
     '''
 
+    svs = [] # singular values
+    pcs = [] # principal components
+    evs = [] # eigenvectors
+    vs = [] # explained variances
+
+    # randomized SVD for PCA
+    for k in range(y.shape[1]):
+        y_1 = y[:, k, :, :, :]
+        # reshape into (num_epoch * num_freq, window_size * num_window)
+        y_flattened = y_1.reshape(y_1.shape[0] * y_1.shape[1], y_1.shape[2] * y_1.shape[3]).transpose()
+
+        # remove complex values
+        y_flattened = np.abs(y_flattened)
+
+        # normalize data for SVD PCA
+        y_normalized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+
+        ### NORMAL SVD: SLOW
+        # U, S, Vt = np.linalg.svd(y_normalized, full_matrices=False)
+
+        ### DO NOT RUN THIS, PC MIGHT DIE
+        # eigval, eigvec = np.linalg.eigh(y_normalized)
+
+        ### RANDOMIZED SVD
+        '''U, S, Vt = randomized_svd(y_normalized, 50) # choose how many features
+        #print(U.shape, S.shape, Vt.shape)
+        sorted_indices = np.argsort(S)[::-1]
+        U = U[:, sorted_indices]
+        S = S[sorted_indices]
+        Vt = Vt[sorted_indices, :]
+        pc = U @ np.diag(S)'''
+
+        ### TRUNCATED SVD
+        
+        svd = TruncatedSVD(n_components=50, random_state=42) # choose how many features
+        svd.fit(y_normalized)
+
+        S = svd.singular_values_ # S[sorted_indices]
+        Vt = svd.components_ # Vt[sorted_indices]
+        pc = svd.transform(y_normalized) # U @ np.diag(S)
+        v = svd.explained_variance_
+        vs.append(v)
+        
+        
+        svs.append(S)
+        pcs.append(pc)
+        evs.append(Vt)
+    
+    
+    # graph 2 major components
+    fig, axes = plt.subplots(2, 4, figsize=(12, 6))
+
+    for i, ax in enumerate(axes.flat):
+        sample = pcs[i][:, :2]
+        eigvec = evs[i][:2, :2] * 200
+
+        # Plot projected data
+        ax.scatter(sample[:, 0], sample[:, 1])
+
+        # Plot eigenvector
+        ax.quiver(0, 0, eigvec[0][0], eigvec[0][1], angles='xy', scale_units='xy', scale=1, color='r')
+        ax.quiver(0, 0, eigvec[1][0], eigvec[1][1], angles='xy', scale_units='xy', scale=1, color='b')
+
+        ax.set_title(f"Channel {1 + i}")
+        ax.set_xlabel("c1")
+        ax.set_ylabel("c2")
+    
+    fig.suptitle("Top 2 Components by Channel")
+    plt.tight_layout()
+    plt.show()
+
+    '''
+
+    # graph explained variance
+    fig, axes = plt.subplots(2, 4, figsize=(12, 6))
+
+    for i, ax in enumerate(axes.flat):
+        graph_val = vs[i]
+        ax.bar(np.arange(len(graph_val)), graph_val)
+
+        ax.set_title(f"Channel {1 + i}")
+        ax.set_xlabel("Component")
+        ax.set_ylabel("Sigma^2")
+
+    fig.suptitle("Explained Variances by Channel")
+    plt.tight_layout()
+    plt.show()'''
+    
     #TODO: project data onto eigenspace
     
     # print("eigenvectors:", eigvecs.shape)
     # print("eigenvalues:", eigvals.shape)
 
+def randomized_svd(A, k, n_oversamples=10, n_iter=5, random_state=None):
+    m, n = A.shape
+    rng = np.random.default_rng(random_state)
+    
+    # Create a random Gaussian test matrix
+    P = rng.normal(size=(n, k + n_oversamples))
+    
+    # Compute the sample matrix Y = A @ P
+    Y = A @ P
+    
+    # Orthogonalize Y using QR decomposition
+    Q, _ = np.linalg.qr(Y, mode='reduced')
+    
+    # Form the smaller matrix B = Q^T @ A
+    B = Q.T @ A
+    
+    # Compute the SVD of the smaller matrix B
+    U_tilde, S, Vt = np.linalg.svd(B, full_matrices=False)
+    
+    # Compute the left singular vectors of A
+    U = Q @ U_tilde
+    
+    # Return the top k components
+    return U[:, :k], S[:k], Vt[:k, :]
+
+# goofy ahh results
 def power_iteration(A, num_simulations=1000, tol=1e-6):
     """
     Performs power iteration to find the principal eigenvector of matrix A.
@@ -700,7 +816,7 @@ if __name__ == "__main__":
     subject_id = 105
     visit_number = 1
     res = preprocess_person(
-        f"../DataCollection/EEGData/data/{subject_id}/{visit_number}/",
+        f"../DataCollection/data/EEGData/{subject_id}/{visit_number}/",
         actions,
         should_visualize=False,
     )
