@@ -6,6 +6,7 @@ from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Polygon
 from matplotlib.lines import Line2D
+from matplotlib.animation import FuncAnimation
 
 
 # ------------------------------------------------------
@@ -18,20 +19,27 @@ def compute_power(data, sampling_rate):
         sampling_rate (int): Sampling rate of the EEG data.
     
     Returns:
-        power_map (numpy.ndarray): Power values for each channel of shape (num_channels,).
+        power_map (numpy.ndarray): Power values of shape (num_channels, num_frequencies, num_samples).
     """
     num_epochs, num_channels, frequency_bands, num_samples = data.shape
-    power_per_channel = np.zeros((num_channels,))
     
-    # Average power across epochs
+    # Get number of frequencies from first run of welch
+    channel_data = data[:, 0, :, :].reshape(-1, num_samples)
+    f, Pxx = welch(channel_data, fs=sampling_rate, axis=-1)
+    num_frequencies = Pxx.shape[0]  # Get actual number of frequencies
+    
+    # Initialize output array with correct shape from Pxx dimensions
+    power_per_channel = np.zeros((num_channels, num_frequencies, num_samples))
+    
+    # Compute power for each channel
     for channel in range(num_channels):
-        channel_data = data[:, channel, :, :].reshape(-1, num_samples)  # Combine epochs
-        f, Pxx = welch(channel_data, fs=sampling_rate, axis=-1)  # Power spectral density
-        power_per_channel[channel] = np.mean(Pxx)  # Average power
+        channel_data = data[:, channel, :, :].reshape(-1, num_samples)
+        f, Pxx = welch(channel_data, fs=sampling_rate, axis=-1)
+        power_per_channel[channel] = Pxx
     
     return power_per_channel
 
-def plot_topomap(power_values, electrode_positions):
+def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
     """
     Plot the topological map of power values.
     
@@ -39,37 +47,55 @@ def plot_topomap(power_values, electrode_positions):
         power_values (numpy.ndarray): Power values for each channel.
         electrode_positions (dict): Dictionary of electrode positions {channel: (x, y)}.
     """
+    num_samples = data.shape[3]
     positions = np.array(list(electrode_positions.values()))
     positions = positions * 10
     x, y = positions[:, 0], positions[:, 1]
-    z = power_values
-    
-    # Create grid
-    grid_x, grid_y = np.meshgrid(
-        np.linspace(min(x) - 0.02, max(x) + 0.02, 100),
-        np.linspace(min(y) - 0.02, max(y) + 0.02, 100)
-    )
-    
-    # Interpolate
-    grid_z = griddata(positions, z, (grid_x, grid_y), method='cubic')
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(6, 6))
     
     # Plot
-    plt.figure(figsize=(6, 6))
-    plt.imshow(grid_z, extent=(min(x) - 0.02, max(x) + 0.02, min(y) - 0.02, max(y) + 0.02), origin='lower', cmap='viridis')
-    plt.scatter(x, y, c=z, cmap='viridis', s=500, edgecolor='k')  # Plot electrode positions
-
-    scalp = Circle((0, 0), 1.0, color='black', fill=False, linestyle='--', linewidth=1.5)
-    plt.gca().add_artist(scalp)
-    nose = Polygon([(0, 1.02), (-0.1, 0.9), (0.1, 0.9)], color='black', zorder=3)
-    plt.gca().add_artist(nose)
-    left_ear = Line2D([-1.05, -1.15, -1.05], [0.2, 0.0, -0.2], color='black', linewidth=1.5)
-    right_ear = Line2D([1.05, 1.15, 1.05], [0.2, 0.0, -0.2], color='black', linewidth=1.5)
-    plt.gca().add_line(left_ear)
-    plt.gca().add_line(right_ear)
+    shift = 0.27
+    scalp = Circle((0, 0 - shift), 1.0, color='black', fill=False, linestyle='--', linewidth=1.5)
+    nose = Polygon([(0, 1.12 - shift), (-0.1, 1.00 - shift), (0.1, 1.00 - shift)], color='black', zorder=3)
     
-    plt.colorbar(label='Power')
-    plt.title('Topological Map of EEG Power')
+    left_ear = Line2D([-1.05, -1.15, -1.05], [0.2 - shift, 0.0 - shift, -0.2 - shift], color='black', linewidth=1.5)
+    right_ear = Line2D([1.05, 1.15, 1.05], [0.2 - shift, 0.0 - shift, -0.2 - shift], color='black', linewidth=1.5)
+    
+    def update(frame):
+        ax.clear()
+
+        ax.add_artist(scalp)
+        ax.add_artist(nose)
+        ax.add_line(left_ear)
+        ax.add_line(right_ear)
+        
+        # Create grid
+        edge_size = 0.4
+        grid_x, grid_y = np.meshgrid(
+            np.linspace(min(x) - edge_size, max(x) + edge_size, 100),
+            np.linspace(min(y) - edge_size, max(y) + edge_size, 100)
+        )
+        z = power_values[:, frequency_idx, frame]
+        grid_z = griddata(positions, z, (grid_x, grid_y), method='cubic')
+        
+        im = ax.imshow(grid_z, extent=(min(x) - edge_size, max(x) + edge_size, min(y) - edge_size, max(y) + edge_size), origin='lower', cmap='viridis')
+
+        # Update scatter plot
+        scatter = ax.scatter(x, y, c=z, cmap='viridis', s=20, edgecolor='k')
+
+        # Adjust plot appearance
+        ax.set_title(f'Topological Map - Timestamp {frame}')
+        # ax.set_xlim(-1.2, 1.2)
+        # ax.set_ylim(-1.2, 1.2)
+        ax.grid(False)
+
+        return im, scatter
+
+    ani = FuncAnimation(fig, update, frames=num_samples, interval=1000 / fps, blit=False)
     plt.show()
+    ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
@@ -145,4 +171,6 @@ data, acell_data, action_data = pp.preprocess(eeg_data_path, actions, False)
 sampling_rate = 256
 power_values = compute_power(data, sampling_rate)
 
-plot_topomap(power_values, electrode_positions)
+print(power_values.shape)
+
+plot_topomap(power_values, electrode_positions, 2)
