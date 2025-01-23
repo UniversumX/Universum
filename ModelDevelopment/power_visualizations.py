@@ -57,11 +57,12 @@ def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
     
     # Plot
     shift = 0.27
-    scalp = Circle((0, 0 - shift), 1.0, color='black', fill=False, linestyle='--', linewidth=1.5)
-    nose = Polygon([(0, 1.12 - shift), (-0.1, 1.00 - shift), (0.1, 1.00 - shift)], color='black', zorder=3)
+    scale = 1.1
+    scalp = Circle((0, scale * (0 - shift)), scale * 1.0, color='black', fill=False, linestyle='--', linewidth=1.5)
+    nose = Polygon([(0, scale * (1.12 - shift)), (scale * -0.1, scale * (1.00 - shift)), (scale * 0.1, scale * (1.00 - shift))], color='black', zorder=3)
     
-    left_ear = Line2D([-1.05, -1.15, -1.05], [0.2 - shift, 0.0 - shift, -0.2 - shift], color='black', linewidth=1.5)
-    right_ear = Line2D([1.05, 1.15, 1.05], [0.2 - shift, 0.0 - shift, -0.2 - shift], color='black', linewidth=1.5)
+    left_ear = Line2D([scale * -1.05, scale * -1.15, scale * -1.05], [scale * (0.2 - shift), scale * (0.0 - shift), scale * (-0.2 - shift)], color='black', linewidth=1.5)
+    right_ear = Line2D([scale * 1.05, scale * 1.15, scale * 1.05], [scale * (0.2 - shift), scale * (0.0 - shift), scale * (-0.2 - shift)], color='black', linewidth=1.5)
     
     def update(frame):
         ax.clear()
@@ -83,12 +84,15 @@ def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
         im = ax.imshow(grid_z, extent=(min(x) - edge_size, max(x) + edge_size, min(y) - edge_size, max(y) + edge_size), origin='lower', cmap='viridis')
 
         # Update scatter plot
-        scatter = ax.scatter(x, y, c=z, cmap='viridis', s=20, edgecolor='k')
+        scatter = ax.scatter(x, y, c=z, cmap='viridis', s=200, edgecolor='k')
+        
+        for label, pos in electrode_positions.items():
+            ax.text(pos[0] * 10, pos[1] * 10, label, fontsize=8, ha='center', va='center', color='white')
 
         # Adjust plot appearance
         ax.set_title(f'Topological Map - Timestamp {frame}')
-        # ax.set_xlim(-1.2, 1.2)
-        # ax.set_ylim(-1.2, 1.2)
+        ax.set_xlim(-1.8, 1.8)
+        ax.set_ylim(-1.8, 1.8)
         ax.grid(False)
 
         return im, scatter
