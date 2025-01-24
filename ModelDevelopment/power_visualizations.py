@@ -23,23 +23,17 @@ def compute_power(data, sampling_rate):
     """
     num_epochs, num_channels, frequency_bands, num_samples = data.shape
     
-    # Get number of frequencies from first run of welch
-    channel_data = data[:, 0, :, :].reshape(-1, num_samples)
-    f, Pxx = welch(channel_data, fs=sampling_rate, axis=-1)
-    num_frequencies = Pxx.shape[0]  # Get actual number of frequencies
-    
-    # Initialize output array with correct shape from Pxx dimensions
-    power_per_channel = np.zeros((num_channels, num_frequencies, num_samples))
+    power_per_channel = np.zeros((num_channels, num_samples))
     
     # Compute power for each channel
     for channel in range(num_channels):
         channel_data = data[:, channel, :, :].reshape(-1, num_samples)
         f, Pxx = welch(channel_data, fs=sampling_rate, axis=-1)
-        power_per_channel[channel] = Pxx
-    
+        power_per_channel[channel] = np.mean(Pxx, axis=0)
+
     return power_per_channel
 
-def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
+def plot_topomap(power_values, electrode_positions, fps=10):
     """
     Plot the topological map of power values.
     
@@ -84,7 +78,7 @@ def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
             np.linspace(min(x), max(x), 100),
             np.linspace(min(y), max(y), 100)
         )
-        z = power_values[:, frequency_idx, frame]
+        z = power_values[:, frame]
         z = np.pad(z, (0, num_points), mode='constant')
 
         grid_z = griddata(positions, z, (grid_x, grid_y), method='cubic')
@@ -185,4 +179,4 @@ power_values = compute_power(data, sampling_rate)
 
 print(power_values.shape)
 
-plot_topomap(power_values, electrode_positions, 2)
+plot_topomap(power_values, electrode_positions)
