@@ -50,19 +50,26 @@ def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
     num_samples = data.shape[3]
     positions = np.array(list(electrode_positions.values()))
     positions = positions * 10
+    num_pos = len(positions)
+
+    num_points = 100
+    radius = 1.25
+    shift = 0.2
+
+    angles = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
+    circle_points = np.column_stack((radius * np.cos(angles), radius * np.sin(angles) - shift - 0.05))
+    positions = np.vstack((positions, circle_points))
+
     x, y = positions[:, 0], positions[:, 1]
 
     # Create figure
     fig, ax = plt.subplots(figsize=(6, 6))
     
     # Plot
-    shift = 0.27
-    scale = 1.1
-    scalp = Circle((0, scale * (0 - shift)), scale * 1.0, color='black', fill=False, linestyle='--', linewidth=1.5)
-    nose = Polygon([(0, scale * (1.12 - shift)), (scale * -0.1, scale * (1.00 - shift)), (scale * 0.1, scale * (1.00 - shift))], color='black', zorder=3)
-    
-    left_ear = Line2D([scale * -1.05, scale * -1.15, scale * -1.05], [scale * (0.2 - shift), scale * (0.0 - shift), scale * (-0.2 - shift)], color='black', linewidth=1.5)
-    right_ear = Line2D([scale * 1.05, scale * 1.15, scale * 1.05], [scale * (0.2 - shift), scale * (0.0 - shift), scale * (-0.2 - shift)], color='black', linewidth=1.5)
+    scalp = Circle((0, radius * (0 - shift)), radius * 1.0, color='black', fill=False, linestyle='--', linewidth=1.5)
+    nose = Polygon([(0, radius * (1.12 - shift)), (radius * -0.1, radius * (1.00 - shift)), (radius * 0.1, radius * (1.00 - shift))], color='black', zorder=3)
+    left_ear = Line2D([radius * -1.05, radius * -1.15, radius * -1.05], [radius * (0.2 - shift), radius * (0.0 - shift), radius * (-0.2 - shift)], color='black', linewidth=1.5)
+    right_ear = Line2D([radius * 1.05, radius * 1.15, radius * 1.05], [radius * (0.2 - shift), radius * (0.0 - shift), radius * (-0.2 - shift)], color='black', linewidth=1.5)
     
     def update(frame):
         ax.clear()
@@ -73,18 +80,19 @@ def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
         ax.add_line(right_ear)
         
         # Create grid
-        edge_size = 0.4
         grid_x, grid_y = np.meshgrid(
-            np.linspace(min(x) - edge_size, max(x) + edge_size, 100),
-            np.linspace(min(y) - edge_size, max(y) + edge_size, 100)
+            np.linspace(min(x), max(x), 100),
+            np.linspace(min(y), max(y), 100)
         )
         z = power_values[:, frequency_idx, frame]
+        z = np.pad(z, (0, num_points), mode='constant')
+
         grid_z = griddata(positions, z, (grid_x, grid_y), method='cubic')
         
-        im = ax.imshow(grid_z, extent=(min(x) - edge_size, max(x) + edge_size, min(y) - edge_size, max(y) + edge_size), origin='lower', cmap='viridis')
+        im = ax.imshow(grid_z, extent=(min(x), max(x), min(y), max(y)), origin='lower', cmap='viridis')
 
         # Update scatter plot
-        scatter = ax.scatter(x, y, c=z, cmap='viridis', s=200, edgecolor='k')
+        scatter = ax.scatter(x[:num_pos], y[:num_pos], c=z[:num_pos], cmap='viridis', s=250, edgecolor='k')
         
         for label, pos in electrode_positions.items():
             ax.text(pos[0] * 10, pos[1] * 10, label, fontsize=8, ha='center', va='center', color='white')
@@ -92,14 +100,14 @@ def plot_topomap(power_values, electrode_positions, frequency_idx, fps=10):
         # Adjust plot appearance
         ax.set_title(f'Topological Map - Timestamp {frame}')
         ax.set_xlim(-1.8, 1.8)
-        ax.set_ylim(-1.8, 1.8)
+        ax.set_ylim(-1.8, 1.4)
         ax.grid(False)
 
         return im, scatter
 
     ani = FuncAnimation(fig, update, frames=num_samples, interval=1000 / fps, blit=False)
     plt.show()
-    ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
+    ## ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
