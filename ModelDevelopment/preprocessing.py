@@ -140,7 +140,7 @@ def convert_timestamp_to_time_since_last_epoch(df):
     """
     Converts the timestamp to time since the last epoch
     """
-    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype(int) / 10**9
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).astype('int64') / 10**9
     return df
 
 
@@ -230,6 +230,75 @@ def feature_extract(x):
     
     # print("eigenvectors:", eigvecs.shape)
     # print("eigenvalues:", eigvals.shape)
+
+def snr(signal):
+    signal_power = np.mean(signal**2)
+    
+    #assume noise is deviation from mean
+    noise = signal - np.mean(signal)
+    noise_power = np.mean(noise**2)
+    
+    snr = 10 * np.log10(signal_power / noise_power)
+    return snr
+
+def compute_snr(eeg_data):
+    num_epochs, num_channels, num_samples = eeg_data.shape
+    snr_values = np.zeros((num_epochs, num_channels))
+    
+    # Loop through each epoch and each channel
+    for epoch in range(num_epochs):
+        for channel in range(num_channels):
+            snr_values[epoch, channel] = snr(eeg_data[epoch, channel])
+    
+    return snr_values
+
+
+def combine_snrs(snr_values):
+    # Convert SNR from dB to linear scale
+    snr_linear = 10**(snr_values / 10)
+    # Compute the average of the linear SNRs
+    avg_snr_linear = np.mean(snr_linear)
+    # Convert the average linear SNR back to dB
+    combined_snr_db = 10 * np.log10(avg_snr_linear)
+    
+    return combined_snr_db
+
+
+def wiener_filter(x, type, mysize=None, noise=None):
+    #1. direct
+    #2. by channel
+    #3. by epoch
+    #4. by epoch and channel
+    num_epochs, num_channels, num_samples = x.shape
+    if (type == 1):
+        # Combine everything
+        combined = x.reshape(-1)
+        filtered_combined = signal.wiener(combined, mysize=mysize, noise=noise)
+        filtered = filtered_combined.reshape(x.shape)
+        return filtered
+    elif (type == 2):
+        filtered = np.zeros_like(x)
+        for channel in range(num_channels):
+            # Combine all epochs for this channel into one continuous signal
+            combined = x[:, channel, :].reshape(-1)
+            filtered_channel = signal.wiener(combined, mysize=mysize, noise=noise)
+            filtered[:, channel, :] = filtered_channel.reshape(num_epochs, num_samples)
+        return filtered
+    elif (type == 3):
+        filtered = np.zeros_like(x)
+        for epoch in range(num_epochs):
+            combined = x[epoch, :, :].reshape(-1)
+            # Combine all channels for this epoch into one continuous signal
+            filtered_epoch = signal.wiener(combined, mysize=mysize, noise=noise)
+            filtered[epoch, :, :] = filtered_epoch.reshape(num_channels, num_samples)
+        return filtered
+    else: #type 4
+        filtered = np.copy(x)
+        for epoch in range(num_epochs):
+            for channel in range(num_channels):
+                # Apply filter to each channel of each epoch
+                filtered[epoch, channel] = signal.wiener(x[epoch, channel], mysize=mysize, noise=noise)
+        return filtered
 
 def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize=False):
     """
@@ -351,6 +420,14 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
     x = epochs.get_data(copy=True)  # the last event is end of data collection
     y = epochs.events[:-1]  # the last event of the data
     num_epochs, num_channels, num_samples = x.shape
+
+    #filter
+    snr_before_filtering = compute_snr(x)
+    x = wiener_filter(x, 1) # toggle second arg [1-4] (works marginally better with 1-3)
+    snr_after_filtering = compute_snr(x) # evaluating filter performance with signal to noise ratio
+    print(f"Combined SNR Before Filtering: {combine_snrs(snr_before_filtering):.2f} dB")
+    print(f"Combined SNR After Filtering: {combine_snrs(snr_after_filtering):.2f} dB")
+
     x = x.reshape(
         num_channels, num_epochs * num_samples
     )  # stack all of the epochs together for PCA
