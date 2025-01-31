@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from modules import local_storage, subject
 import threading
 
-from pylsl import StreamInlet, resolve_stream
+from pylsl import StreamInlet, resolve_streams
 from datetime import datetime
 import csv
 import time
@@ -46,10 +46,12 @@ sub = subject.Subject()
 datawriter = local_storage.DataWriter(sub)
 
 # Initialize live visualization aspects
-plt.ion()
-fig, axs = plt.subplots(8, 1, figsize=(10, 12), sharex=True)
-channels = ["CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"]
-channel_data = {channel: [] for channel in channels}
+
+### Moved to main ###
+# plt.ion()
+# fig, axs = plt.subplots(8, 1, figsize=(10, 12), sharex=True)
+# channels = ["CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"]
+# channel_data = {channel: [] for channel in channels}
 
 
 def experiment_setup(subject_id="0000", visit=1, trial=1):
@@ -99,7 +101,7 @@ def collect_lsl_data(data):
     try:
         # Resolve the EEG stream
         print("Looking for EEG stream...")
-        streams = resolve_stream('type', 'EEG')
+        streams = resolve_streams('type', 'EEG')
         inlet = StreamInlet(streams[0])
 
         while True:
@@ -244,6 +246,10 @@ def collect():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect EEG and Accelerometer data.")
+    plt.ion()
+    fig, axs = plt.subplots(8, 1, figsize=(10, 12), sharex=True)
+    channels = ["CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"]
+    channel_data = {channel: [] for channel in channels}
     parser.add_argument(
         "--duration", type=int, default=60, help="Duration to collect data in seconds."
     )
