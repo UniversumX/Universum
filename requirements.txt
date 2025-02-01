@@ -4,3 +4,5 @@ neurosity==2.2.0
 pandas==2.2.2
 python-dotenv==1.0.1
 tk
+pylsl
+pygame
