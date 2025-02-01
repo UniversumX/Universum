@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from modules import local_storage, subject
 import threading
 
-from pylsl import StreamInlet, resolve_streams
+# from pylsl import StreamInlet, resolve_streams
 from datetime import datetime
 import csv
 import time
