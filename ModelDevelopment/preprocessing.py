@@ -214,10 +214,17 @@ def feature_extract(x):
     """
     num_epochs, num_channels, num_frequencies, num_samples = x.shape
 
+<<<<<<< HEAD
     # Set window size and offset
     window_size = 20
     window_offset = 2
     transformed_data = []
+=======
+    # set window size and offset
+    window_size = 10
+    window_offset = 5
+    y = []
+>>>>>>> 1f4b321182815cb1fc2c76b3fc551130329fbcf5
 
     # Generate sliding windows
     windows = []
@@ -225,6 +232,7 @@ def feature_extract(x):
     while i <= num_samples - window_size:
         windows.append(x[:, :, :, i : i + window_size])
         i += window_offset
+<<<<<<< HEAD
     windows = np.stack(windows, axis=4)  # Add window axis
     num_windows = windows.shape[4]
 
@@ -242,6 +250,89 @@ def feature_extract(x):
             reshaped_data = windowed_data.reshape(
                 num_frequencies * window_size, num_windows
             ).T
+=======
+    y = np.stack(y, axis=4)
+    
+    # print("windowed dimensions:", y.shape) # num_epochs, num_channels, num_frequencies, window_size, num_window
+    # print("original dimensions: ", x.shape)
+
+    a = num_frequencies * window_size
+    components = []
+    importance = []
+    num_components = 10
+    for k in range(y.shape[1]):
+        y_1 = y[:, k, :, :, :]
+        y_flattened = y_1.reshape(-1, y_1.shape[3]).transpose()
+
+        eigvecs = []
+        eigvals = []
+        y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+        print("Calculating COV")
+        cov = np.cov(y_standardized, rowvar=False)
+        for _ in range(num_components):
+            print("Performing power iteration")
+            eigvec, eigval = power_iteration(cov, num_simulations=200)
+            eigvecs.append(eigvec)
+            eigvals.append(eigval)
+
+            # deflate matrix
+            cov -= eigval * np.outer(eigvec, eigvec)
+        
+        components.append(np.array(eigvecs))
+        importance.append(np.array(eigvals).T)
+    
+    print(components[0].shape)
+    print(importance[0].shape)
+
+    '''
+     #graph eigenvalue
+    graph_val = importance[0]
+    plt.bar(np.arange(len(graph_val)), graph_val)
+
+    plt.xlabel("Eigenvalues")
+    plt.ylabel("Weight")
+    plt.title("PCA chart")
+
+    plt.show()
+    '''
+
+    '''
+    a = num_frequencies * window_size # reused variable
+    eigvecs = []
+    eigvals = []
+    for k in range(y.shape[1]):
+        y_1 = y[:, k, :, :, :]
+        y_flattened = y_1.reshape(-1, y_1.shape[3]).transpose()
+        print(y_flattened.shape)
+
+        # PCA
+        y_standardized = (y_flattened - np.mean(y_flattened, axis=0)) / y_flattened.std(axis=0)
+        cov = np.cov(y_standardized, rowvar=False)
+        eigval, eigvec = np.linalg.eigh(cov)
+        sorted_indices= np.argsort(eigval)[::-1]
+        eigval = eigval[sorted_indices]
+        eigvec = eigvec[:, sorted_indices]
+        eigvecs.append(eigvec)
+        eigvals.append(eigval)
+    
+    eigvecs = np.array(eigvecs)
+    eigvals = np.array(eigvals)
+    print(eigvecs.shape)
+    print(eigvals.shape)
+    '''
+
+    '''
+    a = num_frequencies * window_size # reused variable
+    eigvecs = []
+    eigvals = []
+    for j in range(y.shape[0]):
+        vecs_epoch = []
+        vals_epoch = []
+        for k in range(y.shape[1]):
+            y_1 = y[j][k]
+            y_flattened = y_1.reshape(-1, y_1.shape[2]).transpose()
+            print(y_flattened.shape)
+>>>>>>> 1f4b321182815cb1fc2c76b3fc551130329fbcf5
 
             # Apply PCA
             pca = PCA()
@@ -249,6 +340,7 @@ def feature_extract(x):
                 reshaped_data
             )  # Shape: (num_windows, num_components)
 
+<<<<<<< HEAD
             epoch_data.append(pca_transformed)
         transformed_data.append(epoch_data)
 
@@ -258,7 +350,79 @@ def feature_extract(x):
     )  # (num_epochs, num_channels, num_windows, num_components)
 
     return transformed_data
+=======
+            vecs_epoch.append(eigvec)
+            vals_epoch.append(eigval)
+        
+        eigvecs.append(vecs_epoch)
+        eigvals.append(vals_epoch)
 
+    eigvecs = np.array(eigvecs)
+    eigvals = np.array(eigvals)
+    '''
+
+    # Combine eigvecs and eigvals for each epoch and channel
+    features = []
+    num_epochs = y.shape[0]
+    num_channels = y.shape[1]
+
+    for epoch_idx in range(num_epochs):  # Loop over epochs
+        epoch_features = []
+        for channel_idx in range(num_channels):  # Loop over channels
+            # Extract components (eigenvectors) and importance (eigenvalues)
+            eigvec_feature = components[channel_idx]  # Shape: (eigvec, num_components)
+            eigval_feature = importance[channel_idx]  # Shape: (eigval)
+
+            # Combine eigenvectors and eigenvalues
+            # Element-wise multiplication: scale each eigenvector by its corresponding eigenvalue
+            combined_feature = eigvec_feature * eigval_feature[:, np.newaxis]  # Shape: (eigvec_dim1, num_components)
+            
+            # Flatten the combined features for easier downstream processing
+            # combined_feature_flattened = combined_feature.flatten()  # Shape: (eigvec_dim1 * num_components,)
+            epoch_features.append(combined_feature)  # Store features for this channel
+        features.append(epoch_features)  # Store features for this epoch
+
+    # Convert features to a NumPy array
+    features = np.array(features)  # Shape: (num_epochs, num_channels, eigvec_dim1 * num_components)
+
+    print(f"Features shape: {features.shape}")  # (num_epochs, num_channels, eigvec_dim1 * num_components)
+    return features
+
+
+def power_iteration(A, num_simulations=1000, tol=1e-6):
+    """
+    Performs power iteration to find the principal eigenvector of matrix A.
+    
+    Args:
+        A (numpy.ndarray): Symmetric matrix (e.g., covariance matrix).
+        num_simulations (int): Number of iterations for convergence.
+        tol (float): Tolerance for convergence.
+
+    Returns:
+        eigenvector (numpy.ndarray): Principal eigenvector.
+        eigenvalue (float): Corresponding eigenvalue.
+    """
+    # Random initialization of the eigenvector
+    b_k = np.random.rand(A.shape[1])
+    b_k = b_k / np.linalg.norm(b_k)  # Normalize initial vector
+
+    for _ in range(num_simulations):
+        # Multiply by the matrix
+        b_k1 = np.dot(A, b_k)
+        
+        # Normalize the resulting vector
+        b_k1_norm = np.linalg.norm(b_k1)
+        b_k1 = b_k1 / b_k1_norm
+>>>>>>> 1f4b321182815cb1fc2c76b3fc551130329fbcf5
+
+        # Check for convergence
+        if np.linalg.norm(b_k - b_k1) < tol:
+            break
+        
+        b_k = b_k1
+
+    eigenvalue = np.dot(b_k.T, np.dot(A, b_k))  # Rayleigh quotient for eigenvalue
+    return b_k, eigenvalue
 
 def snr(signal):
     signal_power = np.mean(signal**2)
@@ -364,12 +528,12 @@ def preprocess(directory_path: str, actions: Dict[str, Action], should_visualize
 
     if eeg_data is None or accel_data is None or action_data is None:
         return None, None, None
-
+    
     # Fix the action data so if there are multiple actions of the same type after aech other, it removes those rows
     action_data = action_data.loc[
         (abs(action_data["action_value"] - action_data["action_value"].shift(1)) > 0)
     ].reset_index(drop=True)
-
+    
     # Get rid of the end collection action data
     action_data = action_data[
         action_data["action_value"] != actions["end_collection"].action_value
