@@ -33,7 +33,7 @@ def compute_power(data, sampling_rate):
     for channel in range(num_channels):
         channel_data = data[:, channel + 1]
         f, Pxx = welch(channel_data, fs=sampling_rate, axis=-1)
-        power_per_channel[channel] = Pxx ##### this is messed up
+        power_per_channel[channel] = Pxx ##### this is messed up, do welch for small interval, average, then shift interval and do welch again
 
     return power_per_channel
 
