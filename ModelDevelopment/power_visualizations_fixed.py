@@ -11,7 +11,7 @@ from matplotlib.animation import FuncAnimation
 
 
 # ------------------------------------------------------
-def compute_power(data, sampling_rate):
+def compute_power(data, sampling_rate, time_interval=2):
     """
     Compute the power for each channel using Welch's method.
     
@@ -23,21 +23,29 @@ def compute_power(data, sampling_rate):
         power_map (numpy.ndarray): Power values of shape (num_channels, num_frequencies, num_samples).
     """
     data = data.to_numpy()
-    num_channels = data.shape[1] - 1
+    data = np.delete(data, 0, 1)
+    num_channels = data.shape[1]
     num_samples = data.shape[0]
-    print(data.shape)
+    interval = int(time_interval * sampling_rate)
     
-    power_per_channel = np.zeros((num_channels, 129))
+    f, first_Pxx = welch(data[0:interval, 0], fs=sampling_rate)
+    num_freqs = len(f)
+    
+    power_per_channel = np.zeros((num_channels, num_freqs, num_samples - interval), dtype=np.complex128)
     
     # Compute power for each channel
-    for channel in range(num_channels):
-        channel_data = data[:, channel + 1]
-        f, Pxx = welch(channel_data, fs=sampling_rate, axis=-1)
-        power_per_channel[channel] = Pxx ##### this is messed up, do welch for small interval, average, then shift interval and do welch again
+    for iteration in range(num_samples - interval):
+        start = iteration
+        end = interval + iteration
+        window = data[start:end, :]
+        
+        for ch in range(num_channels):
+            f, Pxx = welch(window[:, ch], fs=sampling_rate)
+            power_per_channel[ch, :, iteration] = Pxx
+    
+    return np.mean(np.abs(power_per_channel), axis=1)
 
-    return power_per_channel
-
-def plot_topomap(power_values, electrode_positions, fps=1000):
+def plot_topomap(power_values, electrode_positions, fps=10, frame_skip=100):
     """
     Plot the topological map of power values.
     
@@ -82,7 +90,7 @@ def plot_topomap(power_values, electrode_positions, fps=1000):
             np.linspace(min(x), max(x), 100),
             np.linspace(min(y), max(y), 100)
         )
-        z = power_values[:, frame]
+        z = power_values[:, frame*frame_skip]
         z = np.pad(z, (0, num_points), mode='constant')
 
         grid_z = griddata(positions, z, (grid_x, grid_y), method='cubic')
@@ -103,9 +111,9 @@ def plot_topomap(power_values, electrode_positions, fps=1000):
 
         return im, scatter
 
-    ani = FuncAnimation(fig, update, frames=num_samples, interval=1000 / fps, blit=False)
+    ani = FuncAnimation(fig, update, frames=int(num_samples/frame_skip), interval=1000 / fps, blit=False)
     plt.show()
-    ## ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
+    ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
@@ -178,12 +186,8 @@ actions = {
     ),
 }
 
-data, acell_data, action_data = pp.preprocess(eeg_data_path, actions, False)
 sampling_rate = 256
 power_values = compute_power(eeg_data, sampling_rate)
-print(power_values[0,10])
-print(power_values[0,10000])
-
 print(power_values.shape)
 
 plot_topomap(power_values, electrode_positions)
