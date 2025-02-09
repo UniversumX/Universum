@@ -19,6 +19,12 @@
 				"docker-build"
 			],
 			"python": {
+				"args": [
+					"runserver",
+					"0.0.0.0:8080",
+					"--nothreading",
+					"--noreload"
+				],
 				"file": "DataCollection\\data_collection.py"
 			}
 		}
