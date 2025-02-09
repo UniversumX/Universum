@@ -11,7 +11,7 @@ from matplotlib.animation import FuncAnimation
 
 
 # ------------------------------------------------------
-def compute_power(data, sampling_rate, time_interval=2):
+def compute_power(data, sampling_rate, time_interval=0.5):
     """
     Compute the power for each channel using Welch's method.
     
@@ -45,7 +45,7 @@ def compute_power(data, sampling_rate, time_interval=2):
     
     return np.mean(np.abs(power_per_channel), axis=1)
 
-def plot_topomap(power_values, electrode_positions, fps=10):
+def plot_topomap(power_values, electrode_positions, fps=30):
     """
     Plot the topological map of power values.
     
@@ -107,13 +107,14 @@ def plot_topomap(power_values, electrode_positions, fps=10):
         ax.set_title(f'Topological Map - Timestamp {frame}')
         ax.set_xlim(-1.8, 1.8)
         ax.set_ylim(-1.8, 1.4)
+        ax.axis('off')
         ax.grid(False)
 
         return im, scatter
 
     ani = FuncAnimation(fig, update, frames=int(num_samples*fps/sampling_rate), interval=1000 / fps, blit=False)
     plt.show()
-    # ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
+    ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
@@ -188,6 +189,5 @@ actions = {
 
 sampling_rate = 256
 power_values = compute_power(eeg_data, sampling_rate)
-print(power_values.shape)
 
 plot_topomap(power_values, electrode_positions)
