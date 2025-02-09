@@ -45,7 +45,7 @@ def compute_power(data, sampling_rate, time_interval=2):
     
     return np.mean(np.abs(power_per_channel), axis=1)
 
-def plot_topomap(power_values, electrode_positions, fps=10, frame_skip=100):
+def plot_topomap(power_values, electrode_positions, fps=10):
     """
     Plot the topological map of power values.
     
@@ -90,7 +90,7 @@ def plot_topomap(power_values, electrode_positions, fps=10, frame_skip=100):
             np.linspace(min(x), max(x), 100),
             np.linspace(min(y), max(y), 100)
         )
-        z = power_values[:, frame*frame_skip]
+        z = power_values[:, int(frame*sampling_rate/fps)]
         z = np.pad(z, (0, num_points), mode='constant')
 
         grid_z = griddata(positions, z, (grid_x, grid_y), method='cubic')
@@ -111,9 +111,9 @@ def plot_topomap(power_values, electrode_positions, fps=10, frame_skip=100):
 
         return im, scatter
 
-    ani = FuncAnimation(fig, update, frames=int(num_samples/frame_skip), interval=1000 / fps, blit=False)
+    ani = FuncAnimation(fig, update, frames=int(num_samples*fps/sampling_rate), interval=1000 / fps, blit=False)
     plt.show()
-    ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
+    # ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
