@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Polygon
 from matplotlib.lines import Line2D
 from matplotlib.animation import FuncAnimation
+import os
 
 
 # ------------------------------------------------------
@@ -147,7 +148,9 @@ def get_electrode_positions(electrode_names, montage_name="standard_1020"):
 electrode_names = ["CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"]
 electrode_positions = get_electrode_positions(electrode_names)
 
-eeg_data_path = f"../DataCollection/data/EEGdata/103/1/1/eeg_data_raw.csv"
+data_path = f"../DataCollection/data/EEGdata/103/1/1/"
+eeg_data_path = os.path.join(data_path, "eeg_data_raw.csv")
+action_data_path = os.path.join(data_path, "action_data.csv")
 eeg_data = pd.read_csv(eeg_data_path)
 
 from dataclasses import dataclass
