@@ -1,4 +1,3 @@
-import preprocessing as pp
 import mne
 import numpy as np
 from scipy.signal import welch
