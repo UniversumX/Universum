@@ -47,6 +47,10 @@ def compute_power(data, sampling_rate=256, time_interval=0.5):
     
     return f, timestamps, np.abs(power_per_channel)
 
+def get_color_map(num_channels):
+    colors = plt.cm.viridis(np.linspace(0, 1, num_channels))
+    return colors
+
 def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, time_interval=0.5, sampling_rate=256):
     """
     Plot the topological map of power values.
@@ -70,6 +74,9 @@ def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, 
     action_idx = [0]
     action_value_map = {action.action_value: name for name, action in actions.items()}
     current_action = ["No action"]
+
+    colors = get_color_map(len(electrode_positions))
+    channel_names = list(electrode_positions.keys())
 
     angles = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
     circle_points = np.column_stack((radius * np.cos(angles), radius * np.sin(angles) - shift - 0.05))
@@ -126,8 +133,8 @@ def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, 
             action_idx[0] += 1
 
         # Adjust plot appearance
-        ax.text(0, 2.25, f"Topological Map of EEG Power", fontsize=15, ha='center', va='center', color='black')
-        ax.text(2, 1.95, f"{current_action[0]}", fontsize=14, ha='center', va='center', color='black')
+        ax.set_title("Topological Map of EEG Power")
+        ax.text(2, 2.2, f"{current_action[0]}", fontsize=14, ha='center', va='center', color='black')
         ax.text(2, -2.6, f"Timestamp: {current_time}", fontsize=13, ha='center', va='center', color='black')
         ax.set_xlim(-1.8, 1.8)
         ax.set_ylim(-1.8, 1.4)
@@ -136,20 +143,25 @@ def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, 
 
         #----------------------------------------------
         # PSD plot
-        graph = ax2.semilogy(f, np.abs(power_values[electrode, :, idx]))
+        ax2.clear()
+        for ch_idx, (channel_name, color) in enumerate(zip(channel_names, colors)):
+            graph = ax2.semilogy(f, np.abs(power_values[ch_idx, :, idx]), 
+                                color=color, 
+                                label=channel_name,
+                                alpha=0.7)
 
-        ax2.set_ylim(1e-12, 1e5)
-        ax2.text(60, 1e7, f"PSD Map Electrode {electrode}", fontsize=15, ha='center', va='center', color='black')
-        
-         # Add labels and title
+        ax2.set_ylim(1e-14, 1e8)
         ax2.set_xlabel('Frequency (Hz)')
         ax2.set_ylabel('Power Spectral Density (µV²/Hz)')
+        ax2.set_title('PSD Map All Channels')
+        ax2.grid(True, which='both', linestyle='--', alpha=0.5)
+        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
-        return im, scatter
+        return im, scatter, graph
 
     ani = FuncAnimation(fig, update, frames=int(num_samples*fps/sampling_rate), interval=1000 / fps, blit=False)
-    plt.show()
-    # ani.save("eeg_animation_combined.gif", fps=fps)
+    #plt.show()
+    ani.save("eeg_animation_combined.mp4", writer='ffmpeg', fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
