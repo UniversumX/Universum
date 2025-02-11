@@ -45,9 +45,9 @@ def compute_power(data, sampling_rate=256, time_interval=0.5):
             f, Pxx = welch(window[:, ch], fs=sampling_rate)
             power_per_channel[ch, :, iteration] = Pxx
     
-    return timestamps, np.mean(np.abs(power_per_channel), axis=1)
+    return f, timestamps, np.abs(power_per_channel)
 
-def plot_topomap(eeg_data, action_data, electrode_positions, fps=30, time_interval=0.5, sampling_rate=256):
+def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, time_interval=0.5, sampling_rate=256):
     """
     Plot the topological map of power values.
     
@@ -55,8 +55,9 @@ def plot_topomap(eeg_data, action_data, electrode_positions, fps=30, time_interv
         power_values (numpy.ndarray): Power values for each channel.
         electrode_positions (dict): Dictionary of electrode positions {channel: (x, y)}.
     """
-    timestamps, power_values = compute_power(eeg_data, sampling_rate=sampling_rate, time_interval=time_interval)
-    num_samples = power_values.shape[1]
+    f, timestamps, power_values = compute_power(eeg_data, sampling_rate=sampling_rate, time_interval=time_interval)
+    power_values_avg = np.mean(power_values, axis=1)
+    num_samples = power_values_avg.shape[1]
     positions = np.array(list(electrode_positions.values()))
     positions = positions * 10
     num_pos = len(positions)
@@ -77,7 +78,9 @@ def plot_topomap(eeg_data, action_data, electrode_positions, fps=30, time_interv
     x, y = positions[:, 0], positions[:, 1]
 
     # Create figure
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig = plt.figure(figsize=(12, 6))
+    ax = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122)
     
     # Plot
     scalp = Circle((0, radius * (0 - shift)), radius * 1.0, color='black', fill=False, linestyle='--', linewidth=1.5)
@@ -88,6 +91,7 @@ def plot_topomap(eeg_data, action_data, electrode_positions, fps=30, time_interv
     def update(frame):
         nonlocal action_idx, current_action, action_data, action_value_map
         ax.clear()
+        ax2.clear()
 
         ax.add_artist(scalp)
         ax.add_artist(nose)
@@ -99,7 +103,8 @@ def plot_topomap(eeg_data, action_data, electrode_positions, fps=30, time_interv
             np.linspace(min(x), max(x), 100),
             np.linspace(min(y), max(y), 100)
         )
-        z = power_values[:, int(frame*sampling_rate/fps)] # check to see if electrodes alligned with their positions
+        idx = int(frame*sampling_rate/fps)
+        z = power_values_avg[:, idx] # check to see if electrodes alligned with their positions
         z = np.pad(z, (0, num_points), mode='constant')
 
         grid_z = griddata(positions, z, (grid_x, grid_y), method='cubic')
@@ -129,71 +134,22 @@ def plot_topomap(eeg_data, action_data, electrode_positions, fps=30, time_interv
         ax.axis('off')
         ax.grid(False)
 
+        #----------------------------------------------
+        # PSD plot
+        graph = ax2.semilogy(f, np.abs(power_values[electrode, :, idx]))
+
+        ax2.set_ylim(1e-12, 1e5)
+        ax2.text(60, 1e7, f"PSD Map Electrode {electrode}", fontsize=15, ha='center', va='center', color='black')
+        
+         # Add labels and title
+        ax2.set_xlabel('Frequency (Hz)')
+        ax2.set_ylabel('Power Spectral Density (µV²/Hz)')
+
         return im, scatter
 
     ani = FuncAnimation(fig, update, frames=int(num_samples*fps/sampling_rate), interval=1000 / fps, blit=False)
     # plt.show()
-    ani.save("eeg_animation.gif", fps=fps)
-    
-def plot_psd(data, channel, action_data, sampling_rate=256, time_interval=0.5, fps=30):
-    timestamps = data["timestamp"]
-    data = data.to_numpy()
-    data = np.delete(data, 0, 1)
-    num_channels = data.shape[1]
-    num_samples = data.shape[0]
-    interval = int(time_interval * sampling_rate)
-    window_length = time_interval * sampling_rate
-    action_data = action_data.to_numpy()
-    action_idx = [0]
-    action_value_map = {action.action_value: name for name, action in actions.items()}
-    current_action = ["No action"]
-    
-    f, first_Pxx = welch(data[0:interval, 0], fs=sampling_rate)
-    num_freqs = len(f)
-    
-    psd_vector = np.zeros((num_channels, num_freqs, num_samples - interval), dtype=np.complex128)
-    
-    # Compute power for each channel
-    for iteration in range(num_samples - interval):
-        start = iteration
-        end = interval + iteration
-        window = data[start:end, :]
-        
-        for ch in range(num_channels):
-            f, Pxx = welch(window[:, ch], fs=sampling_rate)
-            psd_vector[ch, :, iteration] = Pxx
-
-    fig, ax = plt.subplots(figsize=(6, 6))
-
-    def update(frame):
-        nonlocal action_idx, current_action, action_data, action_value_map
-        ax.clear()
-        ax.set_ylim(1e-12, 1e5)
-
-        idx = int(frame*sampling_rate/fps)
-        graph = ax.semilogy(f, np.abs(psd_vector[channel, :, idx]))
-
-        # Determine action
-        timestamp_idx = int(frame * sampling_rate/fps + 0.5*window_length)
-        current_time = timestamps[timestamp_idx]
-        print(f"Loading: {int(timestamp_idx/num_samples*100) - 1}%  ", end="\r") # Loading bar
-        while (action_idx[0] < len(action_data) and current_time >= action_data[action_idx[0], 0]):
-            current_action[0] = action_value_map.get(action_data[action_idx[0], 1])
-            action_idx[0] += 1
-
-        ax.text(60, 1e7, f"PSD Map Electrode {channel}", fontsize=15, ha='center', va='center', color='black')
-        ax.text(60, 1e6, f"Action: {current_action[0]}", fontsize=12, ha='center', va='center', color='black')
-        ax.text(60, 1e-14, f"Timestamp: {current_time}", fontsize=10, ha='center', va='center', color='black')
-
-         # Add labels and title
-        ax.set_xlabel('Frequency (Hz)')
-        ax.set_ylabel('Power Spectral Density (µV²/Hz)')
-
-        return graph
-    
-    ani = FuncAnimation(fig, update, frames=int((num_samples - window_length)*fps/sampling_rate), interval=1000 / fps, blit=False)
-    plt.show()
-    # # ani.save("pds_animation.gif", fps=fps)
+    ani.save("eeg_animation_combined.gif", fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
@@ -271,5 +227,4 @@ actions = {
 
 sampling_rate = 256
 
-#plot_topomap(eeg_data, action_data, electrode_positions, fps=10, time_interval=1.0)
-plot_psd(eeg_data, 3, action_data, time_interval=0.5, fps=30)
+plot_topomap(eeg_data, action_data, 3, electrode_positions, fps=30, time_interval=0.5)
