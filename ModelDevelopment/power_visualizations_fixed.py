@@ -12,7 +12,7 @@ import os
 
 
 # ------------------------------------------------------
-def compute_power(data, sampling_rate, time_interval=0.5):
+def compute_power(data, sampling_rate=256, time_interval=0.5):
     """
     Compute the power for each channel using Welch's method.
     
@@ -23,6 +23,7 @@ def compute_power(data, sampling_rate, time_interval=0.5):
     Returns:
         power_map (numpy.ndarray): Power values of shape (num_channels, num_frequencies, num_samples).
     """
+    timestamps = data["timestamp"]
     data = data.to_numpy()
     data = np.delete(data, 0, 1)
     num_channels = data.shape[1]
@@ -44,9 +45,9 @@ def compute_power(data, sampling_rate, time_interval=0.5):
             f, Pxx = welch(window[:, ch], fs=sampling_rate)
             power_per_channel[ch, :, iteration] = Pxx
     
-    return np.mean(np.abs(power_per_channel), axis=1)
+    return timestamps, np.mean(np.abs(power_per_channel), axis=1)
 
-def plot_topomap(power_values, electrode_positions, fps=30):
+def plot_topomap(power_values, timestamps, action_data, electrode_positions, fps=30, time_interval=0.5, sampling_rate=256):
     """
     Plot the topological map of power values.
     
@@ -62,6 +63,11 @@ def plot_topomap(power_values, electrode_positions, fps=30):
     num_points = 100
     radius = 1.25
     shift = 0.2
+    window_length = time_interval * sampling_rate
+    action_data = action_data.to_numpy()
+    action_idx = [0]
+    action_value_map = {action.action_value: name for name, action in actions.items()}
+    current_action = ["No action"]
 
     angles = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
     circle_points = np.column_stack((radius * np.cos(angles), radius * np.sin(angles) - shift - 0.05))
@@ -79,6 +85,7 @@ def plot_topomap(power_values, electrode_positions, fps=30):
     right_ear = Line2D([radius * 1.05, radius * 1.15, radius * 1.05], [radius * (0.2 - shift), radius * (0.0 - shift), radius * (-0.2 - shift)], color='black', linewidth=1.5)
     
     def update(frame):
+        nonlocal action_idx, current_action, action_data, action_value_map
         ax.clear()
 
         ax.add_artist(scalp)
@@ -103,9 +110,19 @@ def plot_topomap(power_values, electrode_positions, fps=30):
         
         for label, pos in electrode_positions.items():
             ax.text(pos[0] * 10, pos[1] * 10, label, fontsize=8, ha='center', va='center', color='white')
+            
+        # Determine action
+        timestamp_idx = int(frame * sampling_rate/fps + 0.5*window_length)
+        current_time = timestamps[timestamp_idx]
+        print(f"Loading: {int(timestamp_idx/num_samples*100) - 1}%  ", end="\r") # Loading bar
+        while (action_idx[0] < len(action_data) and current_time >= action_data[action_idx[0], 0]):
+            current_action[0] = action_value_map.get(action_data[action_idx[0], 1])
+            action_idx[0] += 1
 
         # Adjust plot appearance
-        ax.set_title(f'Topological Map - Timestamp {frame}')
+        ax.text(0, 1.6, f"Topological Map of EEG Power", fontsize=15, ha='center', va='center', color='black')
+        ax.text(0, 1.3, f"Action: {current_action[0]}", fontsize=12, ha='center', va='center', color='black')
+        ax.text(0, -2, f"Timestamp: {current_time}", fontsize=12, ha='center', va='center', color='black')
         ax.set_xlim(-1.8, 1.8)
         ax.set_ylim(-1.8, 1.4)
         ax.axis('off')
@@ -114,8 +131,12 @@ def plot_topomap(power_values, electrode_positions, fps=30):
         return im, scatter
 
     ani = FuncAnimation(fig, update, frames=int(num_samples*fps/sampling_rate), interval=1000 / fps, blit=False)
-    plt.show()
-    ani.save("eeg_animation.gif", writer='Pillow', fps=fps)
+    # plt.show()
+    ani.save("eeg_animation.gif", fps=fps)
+    
+def plot_psd(data, sampling_rate=256, time_interval=0.5, fps=30): {
+    
+}
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
@@ -152,6 +173,7 @@ data_path = f"../DataCollection/data/EEGdata/103/1/1/"
 eeg_data_path = os.path.join(data_path, "eeg_data_raw.csv")
 action_data_path = os.path.join(data_path, "action_data.csv")
 eeg_data = pd.read_csv(eeg_data_path)
+action_data = pd.read_csv(action_data_path)
 
 from dataclasses import dataclass
 @dataclass
@@ -191,6 +213,6 @@ actions = {
 }
 
 sampling_rate = 256
-power_values = compute_power(eeg_data, sampling_rate)
+timestamps, power_values = compute_power(eeg_data, sampling_rate=sampling_rate)
 
-plot_topomap(power_values, electrode_positions)
+plot_topomap(power_values, timestamps, action_data, electrode_positions, fps=10, sampling_rate=sampling_rate)
