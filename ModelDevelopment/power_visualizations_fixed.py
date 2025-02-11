@@ -126,9 +126,9 @@ def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, 
             action_idx[0] += 1
 
         # Adjust plot appearance
-        ax.text(0, 1.6, f"Topological Map of EEG Power", fontsize=15, ha='center', va='center', color='black')
-        ax.text(0, 1.3, f"Action: {current_action[0]}", fontsize=12, ha='center', va='center', color='black')
-        ax.text(0, -2, f"Timestamp: {current_time}", fontsize=12, ha='center', va='center', color='black')
+        ax.text(0, 2.25, f"Topological Map of EEG Power", fontsize=15, ha='center', va='center', color='black')
+        ax.text(2, 1.95, f"{current_action[0]}", fontsize=14, ha='center', va='center', color='black')
+        ax.text(2, -2.6, f"Timestamp: {current_time}", fontsize=13, ha='center', va='center', color='black')
         ax.set_xlim(-1.8, 1.8)
         ax.set_ylim(-1.8, 1.4)
         ax.axis('off')
@@ -148,8 +148,8 @@ def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, 
         return im, scatter
 
     ani = FuncAnimation(fig, update, frames=int(num_samples*fps/sampling_rate), interval=1000 / fps, blit=False)
-    # plt.show()
-    ani.save("eeg_animation_combined.gif", fps=fps)
+    plt.show()
+    # ani.save("eeg_animation_combined.gif", fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
