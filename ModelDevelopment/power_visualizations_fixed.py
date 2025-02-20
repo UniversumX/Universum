@@ -43,14 +43,17 @@ def compute_power(data, sampling_rate=256, time_interval=0.5):
         for ch in range(num_channels):
             f, Pxx = welch(window[:, ch], fs=sampling_rate)
             power_per_channel[ch, :, iteration] = Pxx
-    
-    return f, timestamps, np.abs(power_per_channel)
+
+    #filter out frequencies above 60 Hz
+    mask = f <= 60
+
+    return f[mask], timestamps, np.abs(power_per_channel[:, mask, :])
 
 def get_color_map(num_channels):
     colors = plt.cm.viridis(np.linspace(0, 1, num_channels))
     return colors
 
-def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, time_interval=0.5, sampling_rate=256):
+def plot_topomap(eeg_data, action_data, electrode_positions, save, fps=30, time_interval=0.5, sampling_rate=256):
     """
     Plot the topological map of power values.
     
@@ -160,7 +163,7 @@ def plot_topomap(eeg_data, action_data, electrode, electrode_positions, fps=30, 
 
     ani = FuncAnimation(fig, update, frames=int(num_samples*fps/sampling_rate), interval=1000 / fps, blit=False)
     #plt.show()
-    ani.save("eeg_animation_combined.mp4", writer='ffmpeg', fps=fps)
+    ani.save(save, writer='ffmpeg', fps=fps)
     
 def get_electrode_positions(electrode_names, montage_name="standard_1020"):
     """
@@ -238,4 +241,4 @@ actions = {
 
 sampling_rate = 256
 
-plot_topomap(eeg_data, action_data, 3, electrode_positions, fps=30, time_interval=0.5)
+plot_topomap(eeg_data, action_data, electrode_positions, "eeg_animation_combined.mp4", fps=30, time_interval=0.5)
