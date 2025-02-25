@@ -1,7 +1,6 @@
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import umap
-import numpy as np
 import pandas as pd
 import preprocessing as pp
 import numpy as np
