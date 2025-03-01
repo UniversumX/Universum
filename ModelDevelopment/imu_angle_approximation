@@ -1,0 +1,51 @@
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+from pyquaternion import Quaternion
+from ahrs.filters import Madgwick
+from ahrs.filters import Mahony
+from filterpy.kalman import KalmanFilter
+
+#returns rel angle
+def get_qr(imu1, imu2, sf_method):
+    q1 = get_q(imu1)
+    q2 = get_q(imu2)
+    qr = q1 * q2.inverse #overloaded * from pyquaternion
+
+    # #returns [roll, pitch, yaw]
+    # rotation = R.from_quat([qr.w, qr.x, qr.y, qr.z])
+    # euler_angles = rotation.as_euler('xyz', degrees=True)
+    # return euler_angles
+
+    return qr
+
+#gets quaternion for both imus, toggle sensorr fusion method
+def get_q(imu_data, sf_method = "madgwick"): #(N, 9), xyz each for accelerometer, gyroscope, magnetometer
+    #separate norms for sensor fusion
+    a = np.linalg.norm(imu_data[:, 0:3])
+    g = np.linalg.norm(imu_data[:, 3:6])
+    m = np.linalg.norm(imu_data[:, 6:9])
+
+    methods = {
+        # 'kalman' : kalman,
+        'madgwick' : madgwick,
+        'mahony' : mahony
+        # 'GI' : gyroscopic_integration,
+        # 'AC': accelerometer_inclination,
+        # 'BCF' : basic_complementary,
+        # 'dmp' : digital_motion_processor
+    }
+
+    return methods[sf_method](a, g, m)
+
+# def kalman(a, g, m):
+#     return q
+
+def madgwick(a, g, m):
+    madgwick = Madgwick()
+    madgwick.update(a, g, m)
+    return madgwick.q
+
+def mahony(a, g, m):
+    mahony = Mahony()
+    mahony.update(a, g, m)
+    return mahony.q
